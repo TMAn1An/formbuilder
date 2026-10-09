@@ -1,0 +1,49 @@
+{
+    "name": "tman1an/formbuilder",
+    "description": "Reusable Laravel Form Builder + simple Page Builder: visual builders, public forms and pages, submissions with image uploads, Excel export.",
+    "type": "library",
+    "keywords": [
+        "laravel",
+        "form-builder",
+        "page-builder",
+        "forms",
+        "submissions"
+    ],
+    "require": {
+        "php": "^8.2",
+        "laravel/framework": "^11.0|^12.0",
+        "phpoffice/phpspreadsheet": "^5.0",
+        "symfony/html-sanitizer": "^7.3"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.24",
+        "orchestra/testbench": "^10.0",
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "TMAn1An\\FormBuilder\\": "src/",
+            "TMAn1An\\FormBuilder\\Database\\Factories\\": "database/factories/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "TMAn1An\\FormBuilder\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "TMAn1An\\FormBuilder\\FormBuilderServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "platform": {
+            "php": "8.2.31"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

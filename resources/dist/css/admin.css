@@ -1,0 +1,87 @@
+/* =========================================================================
+   Builder admin screens (lists, create pages, submissions). Every class is
+   prefixed `fba-` and every color is a --fba-* variable, so the package
+   never depends on (or restyles) the host's admin CSS. Hosts may override
+   the variables, e.g.  .fba { --fba-accent: #7a1f5c; }
+   ========================================================================= */
+
+.fba, .fba-standalone {
+  --fba-accent: #00629b;
+  --fba-accent-dark: #002855;
+  --fba-text: #333333;
+  --fba-muted: #6b7280;
+  --fba-line: #dbe1e6;
+  --fba-shell: #f4f6f8;
+  --fba-danger: #b3261e;
+  --fba-danger-bg: #fbeaea;
+  --fba-ok-bg: #e9f6ee;
+  --fba-ok-text: #1a6b3c;
+  --fba-warn-bg: #fdf3e0;
+  --fba-warn-text: #92620a;
+  --fba-radius: 8px;
+  --fba-font: "Segoe UI", "Open Sans", Tahoma, Arial, sans-serif;
+  color: var(--fba-text);
+  font-family: var(--fba-font);
+}
+.fba *, .fba *::before, .fba *::after { box-sizing: border-box; }
+
+/* ----------------------------------------------------- standalone shell */
+.fba-standalone { margin: 0; background: var(--fba-shell); }
+.fba-shell { min-height: 100vh; display: flex; }
+.fba-nav { width: 210px; flex: none; background: var(--fba-accent-dark); display: flex; flex-direction: column; padding: 16px 0; }
+.fba-nav a { color: #fff; opacity: .85; text-decoration: none; padding: 9px 18px; font-size: .92rem; }
+.fba-nav a.is-active, .fba-nav a:hover { opacity: 1; background: rgba(255,255,255,.1); }
+.fba-nav__brand { color: #fff; padding: 4px 18px 16px; font-size: 1.05rem; }
+.fba-main { flex: 1; min-width: 0; padding: 24px 28px; max-width: 1100px; }
+.fba-main--wide { max-width: none; }
+.fba-title { margin: 0 0 18px; font-size: 1.35rem; color: var(--fba-accent-dark); }
+@media (max-width: 800px) { .fba-shell { flex-direction: column; } .fba-nav { width: auto; flex-direction: row; flex-wrap: wrap; padding: 6px; } .fba-nav__brand { display: none; } }
+
+/* ------------------------------------------------------------ components */
+.fba-card { background: #fff; border: 1px solid var(--fba-line); border-radius: var(--fba-radius); padding: 22px; margin-bottom: 20px; }
+.fba-card--flush { padding: 0; overflow-x: auto; }
+.fba-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.fba-muted { color: var(--fba-muted); }
+.fba-help { font-size: .8rem; color: var(--fba-muted); margin: 4px 0 0; }
+
+.fba-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.fba-table th, .fba-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--fba-line); vertical-align: top; }
+.fba-table th { color: var(--fba-muted); font-weight: 600; font-size: .76rem; text-transform: uppercase; letter-spacing: .03em; }
+.fba-table tr:last-child td { border-bottom: 0; }
+.fba-empty { color: var(--fba-muted); text-align: center; padding: 30px !important; }
+
+.fba-badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: .74rem; font-weight: 600; background: #eef2f6; color: var(--fba-accent-dark); }
+.fba-badge--active { background: var(--fba-ok-bg); color: var(--fba-ok-text); }
+.fba-badge--draft { background: var(--fba-warn-bg); color: var(--fba-warn-text); }
+.fba-badge--inactive { background: var(--fba-danger-bg); color: var(--fba-danger); }
+.fba-badge--archived { background: #eef0f2; color: var(--fba-muted); }
+
+.fba-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px; border-radius: var(--fba-radius); font: inherit; font-size: .88rem; font-weight: 600; text-decoration: none; border: 1px solid transparent; cursor: pointer; line-height: 1.2; white-space: nowrap; }
+.fba-btn--primary { background: var(--fba-accent); color: #fff; }
+.fba-btn--primary:hover { background: var(--fba-accent-dark); }
+.fba-btn--ghost { background: #fff; border-color: var(--fba-line); color: var(--fba-text); }
+.fba-btn--ghost:hover { border-color: var(--fba-accent); color: var(--fba-accent); }
+.fba-btn--danger { background: #fff; border-color: var(--fba-danger); color: var(--fba-danger); }
+.fba-btn--sm { padding: 4px 10px; font-size: .8rem; }
+.fba-btn[disabled] { opacity: .55; cursor: not-allowed; }
+.fba-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.fba-actions form { margin: 0; }
+
+.fba-field { margin-bottom: 16px; }
+.fba-field label { display: block; font-weight: 600; font-size: .88rem; margin-bottom: 6px; }
+.fba-field input, .fba-field textarea, .fba-field select { width: 100%; max-width: 480px; padding: 9px 11px; border: 1px solid var(--fba-line); border-radius: 6px; font: inherit; font-size: .92rem; }
+
+.fba-alert { border-radius: var(--fba-radius); padding: 10px 14px; margin-bottom: 14px; font-size: .9rem; border: 1px solid; }
+.fba-alert ul { margin: 0; padding-left: 18px; }
+.fba-alert--ok { background: var(--fba-ok-bg); color: var(--fba-ok-text); border-color: #bfe3cc; }
+.fba-alert--error { background: var(--fba-danger-bg); color: var(--fba-danger); border-color: #f1c7c4; }
+
+.fba-link-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.fba-link-row code { font-size: .76rem; color: var(--fba-muted); word-break: break-all; }
+.fba-copied { font-size: .74rem; color: var(--fba-ok-text); }
+
+.fba-meta { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; }
+.fba-meta dt { color: var(--fba-muted); font-size: .85rem; }
+.fba-meta dd { margin: 0; }
+.fba-thumb { display: block; max-width: 260px; max-height: 260px; border-radius: 6px; border: 1px solid var(--fba-line); background: #fff; }
+.fba-pagination { margin-top: 16px; }

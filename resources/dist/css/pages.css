@@ -1,0 +1,85 @@
+/* =========================================================================
+   Page Builder renderer. Page design values are --pb-* variables emitted by
+   TMAn1An\FormBuilder\Styling\PageStyleSchema on #pb-page-{id}; per-block
+   styles are inline, rebuilt from validated values by PagePresenter. Buttons
+   reuse .ff-button from forms.css (the shared ButtonStyleSchema).
+   Everything is scoped under .pb-page so it never restyles the host site.
+   ========================================================================= */
+
+.pb-page {
+  --pb-max-width: 1100px;
+  --pb-bg: #f4f6f8;
+  --pb-content-bg: #ffffff;
+  --pb-text: #1a1a1a;
+  --pb-padding: 40px;
+  --pb-gap: 24px;
+  --pb-radius: 12px;
+
+  box-sizing: border-box;
+  background: var(--pb-bg);
+  color: var(--pb-text);
+  padding: 32px 16px 64px;
+  line-height: 1.6;
+}
+.pb-page *, .pb-page *::before, .pb-page *::after { box-sizing: border-box; }
+
+.pb-page .pb-content {
+  max-width: var(--pb-max-width);
+  margin: 0 auto;
+  background: var(--pb-content-bg);
+  padding: var(--pb-padding);
+  border-radius: var(--pb-radius);
+  display: flex;
+  flex-direction: column;
+  gap: var(--pb-gap);
+}
+
+.pb-page .pb-block { margin: 0; min-width: 0; }
+
+/* Containers */
+.pb-page .pb-section { display: flex; flex-direction: column; gap: var(--pb-gap); }
+.pb-page .pb-columns {
+  display: grid;
+  grid-template-columns: repeat(var(--pb-cols, 2), minmax(0, 1fr));
+  gap: var(--pb-col-gap, 24px);
+}
+.pb-page .pb-col { display: flex; flex-direction: column; gap: var(--pb-gap); min-width: 0; }
+
+/* Text -- neutralize host-site heading/paragraph rules, then apply ours. */
+.pb-page .pb-heading { color: inherit; margin: 0; line-height: 1.2; letter-spacing: normal; font-weight: 700; overflow-wrap: anywhere; }
+.pb-page .pb-heading--h1 { font-size: 2.4rem; }
+.pb-page .pb-heading--h2 { font-size: 1.9rem; }
+.pb-page .pb-heading--h3 { font-size: 1.5rem; }
+.pb-page .pb-heading--h4 { font-size: 1.25rem; }
+.pb-page .pb-heading--h5 { font-size: 1.1rem; }
+.pb-page .pb-heading--h6 { font-size: 1rem; }
+.pb-page .pb-rich { overflow-wrap: anywhere; }
+.pb-page .pb-rich > :first-child { margin-top: 0; }
+.pb-page .pb-rich > :last-child { margin-bottom: 0; }
+.pb-page .pb-rich p { margin: 0 0 .9em; }
+.pb-page .pb-rich :is(h2, h3, h4, h5, h6) { color: inherit; margin: 1em 0 .5em; line-height: 1.25; }
+.pb-page .pb-rich img { max-width: 100%; height: auto; }
+
+/* Media */
+.pb-page .pb-image { display: flex; justify-content: center; }
+.pb-page .pb-image a { display: inline-block; max-width: 100%; }
+.pb-page .pb-image img { display: block; max-width: 100%; height: auto; }
+
+/* Button: alignment comes from the shared --ff-btn-align variable. */
+.pb-page .pb-button { display: flex; justify-content: var(--ff-btn-align, flex-start); }
+
+.pb-page .pb-divider { border: 0; border-top: 1px solid #dde3ea; width: 100%; margin: 8px auto; }
+.pb-page .pb-spacer { width: 100%; }
+
+/* An embedded form keeps its own design; just don't let it overflow. */
+.pb-page .pb-form .ff-form { max-width: min(var(--ff-max-width), 100%); }
+
+.pb-page .pb-notice { border: 1px dashed #f5c47a; background: #fff4e5; color: #7a4b00; padding: 10px 14px; border-radius: 6px; font-size: 14px; }
+
+@media (max-width: 720px) {
+  .pb-page { padding: 16px 8px 40px; }
+  .pb-page .pb-content { padding: min(var(--pb-padding), 20px); }
+  .pb-page .pb-columns { grid-template-columns: minmax(0, 1fr); }
+  .pb-page .pb-heading--h1 { font-size: 1.9rem; }
+  .pb-page .pb-heading--h2 { font-size: 1.55rem; }
+}
