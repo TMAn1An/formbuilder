@@ -86,25 +86,52 @@ class FormImagesTest extends TestCase
         $this->assertSame(0, PageMedia::count());
     }
 
-    public function test_banner_settings_are_validated_saved_and_rendered_above_the_title(): void
+    public function test_banner_settings_are_validated_saved_and_rendered_as_a_section_above_the_form(): void
     {
         $user = User::factory()->create();
         $form = $this->createFormVia($user, 'Volunteer Signup');
         $media = $this->uploadToForm($user, $form);
         $fields = [$this->fieldDef('text', 'name', 'Name')];
 
-        $this->saveDefinition($user, $form, $fields, ['settings' => ['banner_media_id' => 999999, 'banner_height' => 5000, 'banner_alt' => str_repeat('x', 301)]])
-            ->assertStatus(422)->assertJsonValidationErrors(['settings.banner_media_id', 'settings.banner_height', 'settings.banner_alt']);
+        $this->saveDefinition($user, $form, $fields, ['settings' => [
+            'banner_media_id' => 999999, 'banner_height' => 5000, 'banner_alt' => str_repeat('x', 301), 'banner_position' => 'left', 'banner_width' => 'huge',
+        ]])->assertStatus(422)->assertJsonValidationErrors([
+            'settings.banner_media_id', 'settings.banner_height', 'settings.banner_alt', 'settings.banner_position', 'settings.banner_width',
+        ]);
 
         $this->saveDefinition($user, $form, $fields, ['intent' => 'publish', 'settings' => [
             'banner_media_id' => (string) $media->id, 'banner_alt' => '  BECITHCON 2026 banner ', 'banner_height' => 220,
-        ]])->assertOk()->assertJsonPath('state.form.settings.banner_media_id', $media->id)->assertJsonPath('state.form.settings.banner_alt', 'BECITHCON 2026 banner');
+        ]])->assertOk()->assertJsonPath('state.form.settings.banner_media_id', $media->id)->assertJsonPath('state.form.settings.banner_alt', 'BECITHCON 2026 banner')
+            ->assertJsonPath('state.form.settings.banner_position', 'top')->assertJsonPath('state.form.settings.banner_width', 'form');
+        $form = $form->fresh();
 
-        $html = $this->get('/forms/'.$form->fresh()->slug)->assertOk()->getContent();
+        // Its own section, before (outside) the form card; it shares the form's width/alignment variables.
+        $html = $this->get('/forms/'.$form->slug)->assertOk()->getContent();
         $this->assertMatchesRegularExpression(
-            '#<figure class="ff-banner">\s*<img src="'.preg_quote($media->url(), '#').'" alt="BECITHCON 2026 banner"\s+width="1200"\s+height="400"\s+style="max-height:220px;object-fit:cover"\s*>\s*</figure>\s*<h1 class="ff-title">Volunteer Signup</h1>#',
+            '#<figure class="ff-banner-section ff-banner-section--top ff-banner-section--form" id="ff-form-'.$form->id.'-banner">\s*<img src="'.preg_quote($media->url(), '#').'" alt="BECITHCON 2026 banner"\s+width="1200"\s+height="400"\s+style="max-height:220px;object-fit:cover"\s*>\s*</figure>\s*<div class="ff-form" id="ff-form-'.$form->id.'">\s*<h1 class="ff-title">Volunteer Signup</h1>#',
             $html,
         );
+        $this->assertStringContainsString('<style>#ff-form-'.$form->id.',#ff-form-'.$form->id.'-banner{', $html);
+    }
+
+    public function test_banner_can_go_below_the_form_and_span_the_full_width(): void
+    {
+        $user = User::factory()->create();
+        $form = $this->createFormVia($user, 'Membership Drive');
+        $media = $this->uploadToForm($user, $form);
+
+        $this->saveDefinition($user, $form, [$this->fieldDef('text', 'name', 'Name')], ['intent' => 'publish', 'settings' => [
+            'banner_media_id' => $media->id, 'banner_position' => 'bottom', 'banner_width' => 'full',
+        ]])->assertOk();
+        $form = $form->fresh();
+
+        $html = $this->get('/forms/'.$form->slug)->assertOk()->getContent();
+        $this->assertMatchesRegularExpression(
+            '#</form>.*?</div>\s*<figure class="ff-banner-section ff-banner-section--bottom ff-banner-section--full" id="ff-form-'.$form->id.'-banner">#s',
+            $html,
+        );
+        $this->assertSame(1, substr_count($html, 'ff-banner-section--'.'bottom'), 'Only one banner, below the form.');
+        $this->assertLessThan(strpos($html, 'ff-banner-section--bottom'), strpos($html, 'class="ff-title"'));
     }
 
     public function test_a_form_without_a_banner_renders_exactly_as_before(): void
@@ -116,8 +143,8 @@ class FormImagesTest extends TestCase
         $this->assertStringNotContainsString('ff-banner', $html);
         $this->assertStringNotContainsString('ff-image', $html);
         $this->assertSame([
-            'banner_media_id' => null, 'banner_alt' => null, 'banner_height' => null,
-        ], array_intersect_key($form->settings, array_flip(['banner_media_id', 'banner_alt', 'banner_height'])));
+            'banner_media_id' => null, 'banner_alt' => null, 'banner_height' => null, 'banner_position' => 'top', 'banner_width' => 'form',
+        ], array_intersect_key($form->settings, array_flip(['banner_media_id', 'banner_alt', 'banner_height', 'banner_position', 'banner_width'])));
     }
 
     public function test_image_block_settings_are_validated_and_normalized(): void
@@ -127,13 +154,12 @@ class FormImagesTest extends TestCase
         $media = $this->uploadToForm($user, $form);
 
         $this->saveDefinition($user, $form, [
-            $this->fieldDef('image_block', 'img', 'Image', ['settings' => ['alt' => 'x']]), // no media_id
             $this->fieldDef('image_block', 'img2', 'Image', ['settings' => [
                 'media_id' => 999999, 'max_width' => 99999, 'align' => 'justify', 'radius' => -1, 'link_url' => 'javascript:alert(1)',
             ]]),
         ])->assertStatus(422)->assertJsonValidationErrors([
-            'fields.0.settings.media_id', 'fields.1.settings.media_id', 'fields.1.settings.max_width',
-            'fields.1.settings.align', 'fields.1.settings.radius', 'fields.1.settings.link_url',
+            'fields.0.settings.media_id', 'fields.0.settings.max_width',
+            'fields.0.settings.align', 'fields.0.settings.radius', 'fields.0.settings.link_url',
         ]);
 
         $this->saveDefinition($user, $form, [
@@ -235,5 +261,24 @@ class FormImagesTest extends TestCase
         $this->assertSame($media->id, $copy->settings['banner_media_id']);
         $this->assertSame($media->id, $copy->fields()->sole()->settings['media_id']);
         $this->assertSame(1, PageMedia::count());
+    }
+
+    public function test_a_just_added_image_block_without_a_picture_saves_and_is_not_shown(): void
+    {
+        // Reported: adding an Image block made every save (and autosave) fail
+        // with "The fields.0.settings.media id field is required." until a
+        // picture was chosen.
+        $user = User::factory()->create();
+        $form = $this->createFormVia($user);
+
+        $this->saveDefinition($user, $form, [
+            $this->fieldDef('image_block', 'image', 'Image'),
+            $this->fieldDef('email', 'email', 'Email'),
+        ], ['intent' => 'publish'])->assertOk();
+
+        $this->assertSame([], $form->fresh()->fields()->where('key', 'image')->sole()->settings);
+        $html = $this->get('/forms/'.$form->fresh()->slug)->assertOk()->getContent();
+        $this->assertStringNotContainsString('data-ff-key="image"', $html);
+        $this->assertStringContainsString('name="email"', $html);
     }
 }

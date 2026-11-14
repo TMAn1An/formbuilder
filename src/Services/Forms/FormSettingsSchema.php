@@ -7,8 +7,9 @@ use Illuminate\Validation\Rule;
 /**
  * Behavioral form settings (forms.settings JSON): display title, submit
  * text, success message/redirect, submission policy and schedule, and the
- * optional banner image shown above the title (an image from the shared
- * media library, page_media -- set from the builder's Design tab), and
+ * optional banner: an image from the shared media library (page_media),
+ * shown as its own section above or below the form card, either as wide as
+ * the form or the full page width (set from the builder's Design tab), and
  * `multi_step`: show one section at a time with Next/Back (every Section
  * field starts a step; done in the browser by form-runtime.js, so the server
  * still receives and validates the whole form in one submission).
@@ -41,6 +42,8 @@ final class FormSettingsSchema
             'banner_media_id' => null,
             'banner_alt' => null,
             'banner_height' => null,
+            'banner_position' => 'top',
+            'banner_width' => 'form',
             'multi_step' => false,
             'schema_version' => self::SCHEMA_VERSION,
         ];
@@ -67,6 +70,8 @@ final class FormSettingsSchema
             "{$prefix}.banner_alt" => ['nullable', 'string', 'max:300'],
             // Maximum banner height in px (taller images are cropped to fit); empty = the image's own proportions.
             "{$prefix}.multi_step" => ['nullable', 'boolean'],
+            "{$prefix}.banner_position" => ['nullable', Rule::in(['top', 'bottom'])],
+            "{$prefix}.banner_width" => ['nullable', Rule::in(['form', 'full'])],
             "{$prefix}.banner_height" => ['nullable', 'integer', 'min:'.self::BANNER_MIN_HEIGHT, 'max:'.self::BANNER_MAX_HEIGHT],
         ];
     }
@@ -91,6 +96,8 @@ final class FormSettingsSchema
             'banner_media_id' => isset($settings['banner_media_id']) && $settings['banner_media_id'] !== '' ? (int) $settings['banner_media_id'] : null,
             'banner_alt' => is_string($settings['banner_alt'] ?? null) ? $blankToNull(trim($settings['banner_alt'])) : null,
             'banner_height' => isset($settings['banner_height']) && $settings['banner_height'] !== '' ? (int) $settings['banner_height'] : null,
+            'banner_position' => ($settings['banner_position'] ?? 'top') === 'bottom' ? 'bottom' : 'top',
+            'banner_width' => ($settings['banner_width'] ?? 'form') === 'full' ? 'full' : 'form',
             'multi_step' => filter_var($settings['multi_step'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'schema_version' => self::SCHEMA_VERSION,
         ];
