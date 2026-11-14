@@ -3,6 +3,15 @@
 ## Unreleased — 2026-11-14
 
 ### Form Builder
+- **Easier builder for first-time form makers:**
+  - With no field selected, the right panel shows a 4-step guide (add fields → edit a field →
+    Settings for pages/banner/thank-you → Save draft, Preview, Publish), with a tip on splitting a
+    form into pages.
+  - Each tab starts with a one-line hint of what it is for.
+  - A field's **Key** and **CSS class** are folded under *Advanced* (they open automatically when
+    one of them has an error).
+  - With "one section at a time" on and no Section yet, Settings offers **+ Add a Section at the
+    top**.
 - **Builder usability** (reported on the live site):
   - A field's **key now follows its label** while it is still the generated key, also after the
     first (auto)save. It stops following once you type a key yourself, and is locked once the

@@ -178,3 +178,9 @@ details.fb-group > summary { cursor: pointer; font-size: .78rem; text-transform:
 .pbb-rte button:hover { border-color: var(--fba-accent); }
 .pbb-media-thumb { display: block; max-width: 100%; max-height: 140px; border-radius: 6px; border: 1px solid var(--fba-line); margin: 4px 0 8px; }
 .fb-canvas.is-mobile .ff-banner-section { max-width: 390px; }
+/* Form builder: getting-started guide (no field selected) and per-tab hints. */
+.fb-guide h4 { margin: 0 0 8px; }
+.fb-guide ol { margin: 0 0 10px; padding-left: 18px; font-size: .84rem; line-height: 1.45; }
+.fb-guide li { margin-bottom: 8px; }
+.fb-guide__tip { font-size: .8rem; color: var(--fba-accent-dark); background: #eef5fb; border: 1px solid #c9dcec; border-radius: 6px; padding: 8px 10px; margin: 0; }
+.fb-tab-hint { margin: 0 0 12px; font-size: .78rem; color: var(--muted, #6b7280); }
