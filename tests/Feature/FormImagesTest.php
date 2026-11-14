@@ -11,6 +11,7 @@ use TMAn1An\FormBuilder\Models\FormSubmission;
 use TMAn1An\FormBuilder\Models\PageMedia;
 use TMAn1An\FormBuilder\Services\Forms\FieldSettingsSchema;
 use TMAn1An\FormBuilder\Tests\BuildsForms;
+use TMAn1An\FormBuilder\Tests\BuildsPages;
 use TMAn1An\FormBuilder\Tests\Fixtures\User;
 use TMAn1An\FormBuilder\Tests\TestCase;
 
@@ -22,7 +23,7 @@ use TMAn1An\FormBuilder\Tests\TestCase;
  */
 class FormImagesTest extends TestCase
 {
-    use BuildsForms;
+    use BuildsForms, BuildsPages;
 
     protected function setUp(): void
     {
@@ -280,5 +281,65 @@ class FormImagesTest extends TestCase
         $html = $this->get('/forms/'.$form->fresh()->slug)->assertOk()->getContent();
         $this->assertStringNotContainsString('data-ff-key="image"', $html);
         $this->assertStringContainsString('name="email"', $html);
+    }
+
+    public function test_an_unused_image_can_be_deleted_from_the_library(): void
+    {
+        $user = User::factory()->create();
+        $form = $this->createFormVia($user);
+        $media = $this->uploadToForm($user, $form);
+        Storage::disk('public')->assertExists($media->path);
+
+        $this->actingAs($user)->deleteJson('/admin/media/'.$media->uuid)->assertOk()->assertJsonPath('deleted', $media->id);
+
+        $this->assertSame(0, PageMedia::count());
+        Storage::disk('public')->assertMissing($media->path);
+        $this->get($media->url())->assertNotFound();
+        $this->actingAs($user)->deleteJson('/admin/media/'.$media->uuid)->assertNotFound();
+    }
+
+    public function test_an_image_in_use_anywhere_is_never_deleted(): void
+    {
+        $user = User::factory()->create();
+        $form = $this->createFormVia($user, 'Recruitment 2026');
+        $banner = $this->uploadToForm($user, $form);
+        $picture = $this->uploadToForm($user, $form);
+        $archivedPicture = $this->uploadToForm($user, $form);
+        $pageImage = $this->uploadToForm($user, $form);
+
+        $this->saveDefinition($user, $form, [
+            $this->fieldDef('image_block', 'img', 'Image', ['settings' => ['media_id' => $picture->id]]),
+            $this->fieldDef('image_block', 'old_img', 'Image', ['is_active' => false, 'settings' => ['media_id' => $archivedPicture->id]]),
+        ], ['settings' => ['banner_media_id' => $banner->id]])->assertOk();
+        $page = $this->createPageVia($user, 'Join us');
+        $this->savePage($user, $page, [$this->block('i', 'image', ['media_id' => $pageImage->id])])->assertOk();
+
+        foreach ([
+            [$banner, 'Form "Recruitment 2026" (banner)'],
+            [$picture, 'Form "Recruitment 2026" (Image block)'],
+            [$archivedPicture, 'Form "Recruitment 2026" (Image block)'],
+            [$pageImage, 'Page "Join us" (Image block)'],
+        ] as [$media, $where]) {
+            $this->actingAs($user)->deleteJson('/admin/media/'.$media->uuid)
+                ->assertStatus(409)->assertJsonPath('usages', [$where]);
+            Storage::disk('public')->assertExists($media->path);
+        }
+        $this->assertSame(4, PageMedia::count());
+    }
+
+    public function test_only_admins_with_access_can_delete_images(): void
+    {
+        $user = User::factory()->create(['is_admin' => true]);
+        $form = $this->createFormVia($user);
+        $media = $this->uploadToForm($user, $form);
+
+        auth()->logout();
+        $this->deleteJson('/admin/media/'.$media->uuid)->assertUnauthorized();
+
+        Gate::define('formbuilder.access', fn (User $u) => $u->is_admin);
+        $this->actingAs(User::factory()->create())->deleteJson('/admin/media/'.$media->uuid)->assertForbidden();
+        $this->actingAs($user)->deleteJson('/admin/media/'.$media->id)->assertNotFound(); // numeric ids aren't addressable
+
+        $this->assertSame(1, PageMedia::count());
     }
 }

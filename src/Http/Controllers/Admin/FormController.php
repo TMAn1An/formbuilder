@@ -76,6 +76,7 @@ class FormController extends Controller
                     'publicBase' => preg_replace('#[^/]+$#', '', $this->fb()->public('forms.show', ['form' => 'x'])),
                     'submissions' => $this->fb()->admin('forms.submissions.index', $form),
                     'media' => $this->fb()->admin('forms.media.store', $form),
+                    'mediaDestroy' => $this->fb()->admin('media.destroy', ['media' => '__UUID__']),
                 ],
             ],
         ]);

@@ -62,6 +62,7 @@
     form: null,
     fields: [],
     media: [], // shared media library (page_media) for banner / Image-block pickers
+    mediaLibraryOpen: false,
     rendered: null,
     selected: null,
     tab: 'field',
@@ -907,7 +908,7 @@
           h('p', { class: 'help', text: 'Checked on the server by the file\u2019s real content (not its name). SVG is never accepted.' }),
           e('allowed_types') ? h('p', { class: 'error', text: e('allowed_types') }) : null);
       case 'media_id':
-        return mediaPicker(s.media_id, function (id) { setSetting(f, 'media_id', id); renderPanel(); }, e('media_id'));
+        return mediaPicker(s.media_id, function (id) { setSetting(f, 'media_id', id); renderPanel(); }, e('media_id'), 'Remove picture from this block');
       case 'alt':
         return altCtl(s.alt, set('alt'), e('alt'));
       case 'max_width':
@@ -935,10 +936,11 @@
 
   /**
    * Upload-or-choose control for the shared media library, used by the Image
-   * block and the Design tab's banner. Checks the size before uploading
-   * (META.uploads.mediaMaxKb is what this server really accepts).
+   * block and the Settings tab's banner. Checks the size before uploading
+   * (META.uploads.mediaMaxKb is what this server really accepts). `removeLabel`
+   * names the button that takes the picture off (it stays in the library).
    */
-  function mediaPicker(currentId, onSet, error) {
+  function mediaPicker(currentId, onSet, error, removeLabel) {
     var current = mediaById(currentId);
     var maxKb = META.uploads.mediaMaxKb;
     var maxLabel = maxKb >= 1024 ? (maxKb / 1024).toFixed(maxKb % 1024 ? 1 : 0) + ' MB' : maxKb + ' KB';
@@ -972,7 +974,53 @@
     return h('div', { class: 'fb-control' },
       h('span', { class: 'fb-control__label', text: 'Upload an image (JPG, PNG or WebP, up to ' + maxLabel + ')' }),
       current ? h('img', { src: current.url, alt: '', class: 'pbb-media-thumb' }) : null,
-      file, status, error ? h('p', { class: 'error', text: error }) : null, choose);
+      current ? h('button', { type: 'button', class: 'fba-btn fba-btn--danger fba-btn--sm fb-media-remove', text: removeLabel || 'Remove picture',
+        onclick: function () { onSet(null); } }) : null,
+      file, status, error ? h('p', { class: 'error', text: error }) : null, choose, mediaLibraryManager());
+  }
+
+  /** Ids of library images this form uses right now (saved or not). */
+  function mediaInUseHere() {
+    var ids = {};
+    if (state.form.settings.banner_media_id) ids[Number(state.form.settings.banner_media_id)] = true;
+    state.fields.forEach(function (f) { if (f.type === 'image_block' && f.settings.media_id) ids[Number(f.settings.media_id)] = true; });
+    return ids;
+  }
+
+  /**
+   * "Manage uploaded images": delete images from the library for good. The
+   * server refuses (409, saying where) while any form or page uses one;
+   * images this form uses are not offered at all.
+   */
+  function mediaLibraryManager() {
+    if (!state.media.length || !URLS.mediaDestroy) return null;
+    var used = mediaInUseHere();
+    // Stays open across re-renders, so several images can be deleted in a row.
+    return h('details', { class: 'fb-media-library', open: state.mediaLibraryOpen ? true : null,
+      ontoggle: function (e) { state.mediaLibraryOpen = e.currentTarget.open; } },
+      h('summary', { text: 'Manage uploaded images (' + state.media.length + ')' }),
+      h('p', { class: 'help', text: 'Delete images you no longer need. An image still used on any form or page can’t be deleted.' }),
+      h('ul', null, state.media.map(function (m) {
+        return h('li', null,
+          h('img', { src: m.url, alt: '', loading: 'lazy' }),
+          h('span', { class: 'fb-media-library__name', text: m.name }),
+          used[m.id]
+            ? h('span', { class: 'fb-media-library__used', text: 'Used on this form' })
+            : h('button', { type: 'button', class: 'fba-btn fba-btn--danger fba-btn--sm', text: 'Delete', onclick: function (e) {
+              if (!window.confirm('Delete “' + m.name + '” permanently? This can’t be undone.')) return;
+              var btn = e.currentTarget;
+              btn.disabled = true;
+              api('DELETE', URLS.mediaDestroy.replace('__UUID__', encodeURIComponent(m.uuid))).then(function (res) {
+                if (res.ok) {
+                  state.media = state.media.filter(function (x) { return x.id !== m.id; });
+                  renderPanel();
+                } else {
+                  btn.disabled = false;
+                  window.alert((res.data && res.data.message) || 'Could not delete the image (HTTP ' + res.status + ').');
+                }
+              }).catch(function () { btn.disabled = false; window.alert('Could not reach the server.'); });
+            } }));
+      })));
   }
 
   function altCtl(value, onInput, error) {
@@ -1193,7 +1241,11 @@
 
     var bannerBox = h('div', { class: 'fb-group' }, h('h4', { text: 'Banner image' }),
       h('p', { class: 'help', style: 'font-size:.74rem;color:var(--muted);margin:0 0 8px', text: 'A picture shown as its own section above or below the form (outside the form box).' }),
-      mediaPicker(st.banner_media_id, function (id) { st.banner_media_id = id; changed({ panel: true }); }, err('settings.banner_media_id')));
+      mediaPicker(st.banner_media_id, function (id) {
+        st.banner_media_id = id;
+        if (!id) { st.banner_alt = null; st.banner_height = null; st.banner_position = 'top'; st.banner_width = 'form'; }
+        changed({ panel: true });
+      }, err('settings.banner_media_id'), 'Remove banner'));
     if (st.banner_media_id) {
       bannerBox.append(
         selectCtl('Banner position', st.banner_position === 'bottom' ? 'bottom' : 'top', [['top', 'Above the form'], ['bottom', 'Below the form']],
@@ -1203,10 +1255,7 @@
         altCtl(st.banner_alt, function (v) { st.banner_alt = v === '' ? null : v; changed(); }, err('settings.banner_alt')),
         textCtl('Maximum height (px, optional)', st.banner_height, function (v) { st.banner_height = v === '' ? null : Number(v); changed(); }, {
           type: 'number', min: META.banner.minHeight, max: META.banner.maxHeight, error: err('settings.banner_height'),
-          help: 'Empty = the image keeps its own shape. Otherwise a wide screen crops it to this height; phones show the whole image, smaller (' + META.banner.minHeight + '–' + META.banner.maxHeight + ').' }),
-        h('div', { class: 'fb-panel__actions' }, h('button', { type: 'button', class: 'fba-btn fba-btn--ghost fba-btn--sm', text: 'Remove banner', onclick: function () {
-          st.banner_media_id = null; st.banner_alt = null; st.banner_height = null; st.banner_position = 'top'; st.banner_width = 'form'; changed({ panel: true });
-        } })));
+          help: 'Empty = the image keeps its own shape. Otherwise a wide screen crops it to this height; phones show the whole image, smaller (' + META.banner.minHeight + '–' + META.banner.maxHeight + ').' }));
     }
     nodes.push(bannerBox);
 

@@ -461,6 +461,15 @@ plus an image decode; the size limit is `FieldSettingsSchema::mediaUploadMaxKb()
 and the builder states that limit and checks it before uploading. Stored publicly on
 `storage.media_disk` under a random name, and served by its uuid URL.
 
+**Removing and deleting.** *Remove banner* / *Remove picture from this block* (right under the
+preview) only takes the picture off the form; the image stays in the library. **Manage uploaded
+images** (under the picker) deletes an image for good: `DELETE {admin}/media/{uuid}`
+(`PageMediaController::destroy`, same permission as uploading). The server refuses with 409 and
+says where while any form banner, form Image block (archived ones included) or page Image block
+uses it (`Services\Media\MediaLibrary::usages()`); images the open form uses aren't offered for
+deletion at all. Deleting removes the row and the file. Deletions aren't written to the host's
+audit log (the `AuditLogger` contract only covers forms and pages).
+
 Safety: alt text is escaped; the style values (height, max width, radius, alignment) are validated
 integers/enums rebuilt in `FormPresenter`; the link is re-checked with
 `PageBlockSettingsSchema::isSafeUrl()` before it is printed. Media is never deleted by removing a
