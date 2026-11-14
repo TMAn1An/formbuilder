@@ -57,6 +57,9 @@
 .ff-form *, .ff-form *::before, .ff-form *::after { box-sizing: border-box; }
 .ff-form [hidden] { display: none !important; }
 
+/* Banner image above the title (Design tab). An optional max-height crops via object-fit (inline style). */
+.ff-form .ff-banner { margin: 0 0 var(--ff-gap); }
+.ff-form .ff-banner img { display: block; width: 100%; height: auto; border-radius: var(--ff-input-radius); }
 .ff-form .ff-title { margin: 0 0 6px; color: var(--ff-label-color); font-size: 1.6em; line-height: 1.2; }
 .ff-form .ff-description { margin: 0 0 var(--ff-gap); color: var(--ff-text); opacity: .85; white-space: pre-line; }
 .ff-form .ff-custom-html { margin: 0 0 var(--ff-gap); }
@@ -144,6 +147,9 @@
 .ff-form .ff-section { border-top: 2px solid var(--ff-border-color); padding-top: 14px; margin-top: 6px; }
 .ff-form .ff-section__title { margin: 0; color: var(--ff-label-color); font-size: var(--ff-content-size, 1.2em); line-height: 1.3; }
 .ff-form .ff-section__desc { margin: 4px 0 0; color: var(--ff-text); opacity: .8; white-space: pre-line; }
+/* Image block. Alignment is text-align on the figure; max width / radius are inline styles. */
+.ff-form .ff-image { margin: 0; line-height: 0; }
+.ff-form .ff-image img { display: inline-block; max-width: 100%; height: auto; vertical-align: top; }
 .ff-form .ff-html { color: var(--ff-text); font-size: var(--ff-content-size, 1em); overflow-wrap: anywhere; }
 /* Neutralize the host page's global heading/paragraph rules (the public site colors
    headings navy, the admin doesn't) so HTML blocks look identical in the

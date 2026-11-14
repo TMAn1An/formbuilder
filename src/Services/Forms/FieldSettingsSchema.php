@@ -4,6 +4,7 @@ namespace TMAn1An\FormBuilder\Services\Forms;
 
 use Illuminate\Validation\Rule;
 use TMAn1An\FormBuilder\Enums\FormFieldType;
+use TMAn1An\FormBuilder\Services\Pages\PageBlockSettingsSchema;
 
 /**
  * Validation + normalization for one field's `settings` JSON. Which keys a
@@ -21,6 +22,9 @@ final class FieldSettingsSchema
 
     /** Image-upload formats: settings key => detected MIME type. SVG is deliberately absent. */
     public const IMAGE_TYPES = ['jpg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'];
+
+    /** Largest max_width (px) an Image block may be given. */
+    public const IMAGE_MAX_WIDTH = 2000;
 
     /** @return array<string, list<mixed>> */
     public static function rules(FormFieldType $type, string $prefix): array
@@ -83,6 +87,14 @@ final class FieldSettingsSchema
                 default => ['nullable', 'string', 'max:5000'],
             }],
             'heading_level' => [$path => ['nullable', Rule::in(['h2', 'h3', 'h4'])]],
+            // Image block: a picture from the shared media library (page_media).
+            'media_id' => [$path => ['required', 'integer', Rule::exists('page_media', 'id')]],
+            'alt' => [$path => ['nullable', 'string', 'max:300']],
+            'max_width' => [$path => ['nullable', 'integer', 'min:16', 'max:'.self::IMAGE_MAX_WIDTH]],
+            'align' => [$path => ['nullable', Rule::in(['left', 'center', 'right'])]],
+            'radius' => [$path => ['nullable', 'integer', 'min:0', 'max:200']],
+            'link_url' => [$path => ['nullable', 'string', 'max:2000', PageBlockSettingsSchema::safeUrlRule()]],
+            'new_tab' => [$path => ['nullable', 'boolean']],
             'text_align' => [$path => ['nullable', Rule::in(['left', 'center', 'right'])]],
         };
     }
@@ -106,8 +118,9 @@ final class FieldSettingsSchema
 
             $value = match ($key) {
                 'width' => (int) $value,
-                'show_in_list', 'disabled', 'read_only' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
-                'max_length', 'rows', 'max_size_kb' => $value === null || $value === '' ? null : (int) $value,
+                'show_in_list', 'disabled', 'read_only', 'new_tab' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
+                'max_length', 'rows', 'max_size_kb', 'media_id', 'max_width', 'radius' => $value === null || $value === '' ? null : (int) $value,
+                'alt', 'link_url' => $value === null ? null : trim((string) $value),
                 'allowed_types' => array_values(array_intersect(array_keys(self::IMAGE_TYPES), (array) $value)),
                 'options' => self::orderedOptions($value ?? []),
                 'default_value' => $type === FormFieldType::Checkbox
@@ -154,6 +167,41 @@ final class FieldSettingsSchema
         $types = $settings['allowed_types'] ?? array_keys(self::IMAGE_TYPES);
 
         return array_values(array_intersect_key(self::IMAGE_TYPES, array_flip($types)));
+    }
+
+    /**
+     * Largest media-library upload (KB) this server really accepts: the
+     * package ceiling, lowered to PHP's upload_max_filesize / post_max_size
+     * when those are smaller (cPanel hosts often allow only 2-8 MB).
+     */
+    public static function mediaUploadMaxKb(): int
+    {
+        $limits = [(int) config('formbuilder.uploads.max_kb', 10240)];
+        foreach (['upload_max_filesize', 'post_max_size'] as $ini) {
+            $kb = self::iniSizeToKb((string) ini_get($ini));
+            if ($kb > 0) {
+                // Leave room for the rest of the multipart body under post_max_size.
+                $limits[] = $ini === 'post_max_size' ? max(1, $kb - 64) : $kb;
+            }
+        }
+
+        return min($limits);
+    }
+
+    private static function iniSizeToKb(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '' || ! preg_match('/^(\d+)\s*([KMG]?)/i', $value, $m)) {
+            return 0; // unset / unlimited
+        }
+        $bytes = (int) $m[1] * match (strtoupper($m[2])) {
+            'K' => 1024,
+            'M' => 1024 ** 2,
+            'G' => 1024 ** 3,
+            default => 1,
+        };
+
+        return intdiv($bytes, 1024);
     }
 
     public static function imageMaxKb(array $settings): int

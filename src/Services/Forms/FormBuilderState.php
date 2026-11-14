@@ -3,10 +3,12 @@
 namespace TMAn1An\FormBuilder\Services\Forms;
 
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use TMAn1An\FormBuilder\Enums\FormFieldType;
 use TMAn1An\FormBuilder\Models\Form;
 use TMAn1An\FormBuilder\Models\FormField;
+use TMAn1An\FormBuilder\Models\PageMedia;
 use TMAn1An\FormBuilder\Styling\FieldStyleSchema;
 use TMAn1An\FormBuilder\Styling\FormStyleSchema;
 use TMAn1An\FormBuilder\Support\CssScoper;
@@ -75,11 +77,32 @@ class FormBuilderState
                     ->mapWithKeys(fn (FormField $f) => [$f->id => $this->html->sanitize($f->setting('content'))])
                     ->all(),
             ],
+            'media' => $this->media($form, $fields),
             'permissions' => [
                 'canEdit' => Gate::forUser($user)->allows('update', $form),
                 'canManageCustomCode' => $canCode,
             ],
         ];
+    }
+
+    /**
+     * The media library for the builder's image pickers: the latest uploads
+     * plus every image this form already uses (even an older one), so a
+     * saved banner or Image block always shows its own image.
+     *
+     * @param  Collection<int, FormField>  $fields
+     * @return list<array<string, mixed>>
+     */
+    private function media(Form $form, $fields): array
+    {
+        $used = $fields->map(fn (FormField $f) => $f->type === FormFieldType::ImageBlock ? $f->setting('media_id') : null)
+            ->push(FormSettingsSchema::normalize($form->settings)['banner_media_id'])
+            ->filter()->map(fn ($id) => (int) $id)->unique()->values()->all();
+
+        return PageMedia::query()->latest('id')->limit(200)->get()
+            ->merge(PageMedia::query()->whereIn('id', $used)->get())
+            ->unique('id')->sortByDesc('id')
+            ->map(fn (PageMedia $m) => $m->toBuilderArray())->values()->all();
     }
 
     /** Static schema the builder renders its palette and panels from. @return array<string, mixed> */
@@ -101,7 +124,10 @@ class FormBuilderState
             'uploads' => [
                 'maxKb' => (int) config('formbuilder.uploads.max_kb', 10240),
                 'defaultKb' => (int) config('formbuilder.uploads.default_field_max_kb', 4096),
+                'mediaMaxKb' => FieldSettingsSchema::mediaUploadMaxKb(),
             ],
+            'imageMaxWidth' => FieldSettingsSchema::IMAGE_MAX_WIDTH,
+            'banner' => ['minHeight' => FormSettingsSchema::BANNER_MIN_HEIGHT, 'maxHeight' => FormSettingsSchema::BANNER_MAX_HEIGHT],
         ];
     }
 }

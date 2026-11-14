@@ -46,7 +46,7 @@
   var ICONS = {
     text: 'Aa', long_text: '≡', email: '@', number: '#', phone: '☏', date: 'D', time: 'T', datetime: 'DT',
     select: '▾', radio: '◉', checkbox_group: '☑', checkbox: '✓', hidden: '∅',
-    image: 'IMG', heading: 'H', paragraph: '¶', divider: '—', section: '§', html: '</>',
+    image: 'IMG', heading: 'H', paragraph: '¶', divider: '—', section: '§', html: '</>', image_block: 'PIC',
   };
   var GROUPS = [['input', 'Input fields'], ['choice', 'Choices'], ['layout', 'Layout & content']];
   var TABS = [['field', 'Field'], ['design', 'Design'], ['settings', 'Settings'], ['code', 'Custom code']];
@@ -60,6 +60,7 @@
   var state = {
     form: null,
     fields: [],
+    media: [], // shared media library (page_media) for banner / Image-block pickers
     rendered: null,
     selected: null,
     tab: 'field',
@@ -105,6 +106,7 @@
     state.form.style_settings = plain(s.form.style_settings);
     state.version = s.form.version;
     state.fields = s.fields.map(fromServerField);
+    state.media = s.media || [];
     state.rendered = { css: s.rendered.css || '', html_before: s.rendered.html_before || '', html_after: s.rendered.html_after || '', fields: {} };
     Object.keys(s.rendered.fields || {}).forEach(function (id) { state.rendered.fields['f' + id] = s.rendered.fields[id]; });
   }
@@ -114,6 +116,7 @@
   function activeFields() { return state.fields.filter(function (f) { return f.is_active; }); }
   function isDirty() { return state.changeSeq !== state.savedSeq; }
   function formTitle() { return (state.form.settings.title || '').trim() || state.form.name; }
+  function mediaById(id) { return state.media.find(function (m) { return m.id === Number(id); }) || null; }
 
   /* ============================================================== helpers */
 
@@ -174,7 +177,7 @@
 
   function newField(type) {
     var meta = TYPES[type];
-    var labels = { heading: 'Heading', paragraph: 'Paragraph', divider: 'Divider', section: 'New section', html: 'HTML block', checkbox: 'I agree to the terms' };
+    var labels = { heading: 'Heading', paragraph: 'Paragraph', divider: 'Divider', section: 'New section', html: 'HTML block', checkbox: 'I agree to the terms', image_block: 'Image' };
     var label = labels[type] || meta.label;
     var settings = {};
     if (meta.hasOptions) {
@@ -381,6 +384,12 @@
     var style = h('style', { text: '#' + wrapperId + '{' + formStyleDeclarations() + '}\n' + (state.rendered.css || '') });
 
     var wrapper = h('div', { class: 'ff-form' + (state.device === 'mobile' ? ' ff-form--narrow' : ''), id: wrapperId });
+    var banner = mediaById(state.form.settings.banner_media_id);
+    if (banner) {
+      var bh = Number(state.form.settings.banner_height) || 0;
+      wrapper.append(h('figure', { class: 'ff-banner' }, h('img', { src: banner.url, alt: state.form.settings.banner_alt || '',
+        width: banner.width || null, height: banner.height || null, style: bh ? 'max-height:' + bh + 'px;object-fit:cover' : null })));
+    }
     wrapper.append(h('h1', { class: 'ff-title', text: formTitle() }));
     if (state.form.description) wrapper.append(h('p', { class: 'ff-description', text: state.form.description }));
     if (state.rendered.html_before) wrapper.append(sanitizedHtml('ff-custom-html ff-custom-html--before ff-html', state.rendered.html_before));
@@ -475,6 +484,18 @@
         nodes.push(state.rendered.fields[f.uid] !== undefined
           ? sanitizedHtml('ff-html', state.rendered.fields[f.uid])
           : h('div', { class: 'ff-html', text: 'Rendering preview…' }));
+        break;
+      case 'image_block':
+        var pic = mediaById(s.media_id);
+        if (!pic) {
+          nodes.push(h('div', { class: 'fb-hidden-chip', text: 'Image — no picture chosen yet. Upload or choose one in the Field panel.' }));
+          break;
+        }
+        var picStyle = [];
+        if (Number(s.max_width)) picStyle.push('max-width:min(100%,' + Number(s.max_width) + 'px)');
+        if (Number(s.radius)) picStyle.push('border-radius:' + Number(s.radius) + 'px');
+        nodes.push(h('figure', { class: 'ff-image', style: 'text-align:' + (['center', 'right'].indexOf(s.align) !== -1 ? s.align : 'left') },
+          h('img', { src: pic.url, alt: s.alt || '', width: pic.width || null, height: pic.height || null, style: picStyle.join(';') || null })));
         break;
       case 'image':
         var mimes = imageMimes(s);
@@ -819,6 +840,22 @@
           }),
           h('p', { class: 'help', text: 'Checked on the server by the file\u2019s real content (not its name). SVG is never accepted.' }),
           e('allowed_types') ? h('p', { class: 'error', text: e('allowed_types') }) : null);
+      case 'media_id':
+        return mediaPicker(s.media_id, function (id) { setSetting(f, 'media_id', id); renderPanel(); }, e('media_id'));
+      case 'alt':
+        return altCtl(s.alt, set('alt'), e('alt'));
+      case 'max_width':
+        return textCtl('Maximum width (px)', s.max_width, function (v) { setSetting(f, 'max_width', v === '' ? null : Number(v)); }, {
+          type: 'number', min: 16, max: META.imageMaxWidth, error: e('max_width'), help: 'Empty = as wide as the field allows. Never wider than the screen.' });
+      case 'align':
+        return selectCtl('Alignment', s.align || 'left', ALIGNS, function (v) { setSetting(f, 'align', v === 'left' ? null : v); });
+      case 'radius':
+        return textCtl('Rounded corners (px)', s.radius, function (v) { setSetting(f, 'radius', v === '' ? null : Number(v)); }, { type: 'number', min: 0, max: 200, error: e('radius') });
+      case 'link_url':
+        return textCtl('Link (optional)', s.link_url, set('link_url'), { maxlength: 2000, placeholder: 'https://…', error: e('link_url'),
+          help: 'Clicking the image opens this. https://, http://, mailto:, tel:, / or # links only.' });
+      case 'new_tab':
+        return checkCtl('Open the link in a new tab', s.new_tab, set('new_tab'));
       case 'show_in_list':
         return checkCtl('Show in submissions list', s.show_in_list, set('show_in_list'), { help: 'Adds this field as a column on the Submissions page (up to 3).' });
       case 'read_only':
@@ -828,6 +865,53 @@
       default:
         return null;
     }
+  }
+
+  /**
+   * Upload-or-choose control for the shared media library, used by the Image
+   * block and the Design tab's banner. Checks the size before uploading
+   * (META.uploads.mediaMaxKb is what this server really accepts).
+   */
+  function mediaPicker(currentId, onSet, error) {
+    var current = mediaById(currentId);
+    var maxKb = META.uploads.mediaMaxKb;
+    var maxLabel = maxKb >= 1024 ? (maxKb / 1024).toFixed(maxKb % 1024 ? 1 : 0) + ' MB' : maxKb + ' KB';
+    var status = h('p', { class: 'help', text: current ? current.name + (current.width ? ' · ' + current.width + '×' + current.height : '') : 'No image selected.' });
+    var file = h('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', 'aria-label': 'Upload an image', onchange: function () {
+      if (!file.files.length) return;
+      var chosen = file.files[0];
+      if (chosen.size > maxKb * 1024) {
+        status.textContent = '“' + chosen.name + '” is ' + (chosen.size / 1048576).toFixed(1) + ' MB; this server accepts images up to ' + maxLabel + '. Resize it and try again.';
+        status.className = 'error';
+        file.value = '';
+        return;
+      }
+      var data = new FormData();
+      data.append('image', chosen);
+      status.textContent = 'Uploading…';
+      status.className = 'help';
+      api('POST', URLS.media, data).then(function (res) {
+        if (res.ok && res.data && res.data.media) {
+          state.media.unshift(res.data.media);
+          onSet(res.data.media.id);
+        } else {
+          status.textContent = (res.data && res.data.errors && res.data.errors.image && res.data.errors.image[0]) || 'Upload failed (HTTP ' + res.status + ').';
+          status.className = 'error';
+        }
+      }).catch(function () { status.textContent = 'Upload failed. Check your connection.'; status.className = 'error'; });
+    } });
+    var choose = selectCtl('Or choose an uploaded image', String(currentId || ''),
+      [['', '(none)']].concat(state.media.map(function (m) { return [String(m.id), m.name]; })),
+      function (v) { onSet(v ? Number(v) : null); });
+    return h('div', { class: 'fb-control' },
+      h('span', { class: 'fb-control__label', text: 'Upload an image (JPG, PNG or WebP, up to ' + maxLabel + ')' }),
+      current ? h('img', { src: current.url, alt: '', class: 'pbb-media-thumb' }) : null,
+      file, status, error ? h('p', { class: 'error', text: error }) : null, choose);
+  }
+
+  function altCtl(value, onInput, error) {
+    return textCtl('Description for screen readers (alt text)', value, onInput, { maxlength: 300, error: error,
+      help: 'Describe what the image shows, e.g. “BECITHCON 2026 banner”. Leave empty only if it is purely decorative.' });
   }
 
   function defaultValueCtl(f, error) {
@@ -981,6 +1065,21 @@
 
   function renderDesignPanel() {
     var nodes = [];
+    var st = state.form.settings;
+    var bannerBox = h('div', { class: 'fb-group' }, h('h4', { text: 'Banner image' }),
+      h('p', { class: 'help', style: 'font-size:.74rem;color:var(--muted);margin:0 0 8px', text: 'Shown across the top of the form, above the title.' }),
+      mediaPicker(st.banner_media_id, function (id) { st.banner_media_id = id; changed({ panel: true }); }, err('settings.banner_media_id')));
+    if (st.banner_media_id) {
+      bannerBox.append(
+        altCtl(st.banner_alt, function (v) { st.banner_alt = v === '' ? null : v; changed(); }, err('settings.banner_alt')),
+        textCtl('Maximum height (px, optional)', st.banner_height, function (v) { st.banner_height = v === '' ? null : Number(v); changed(); }, {
+          type: 'number', min: META.banner.minHeight, max: META.banner.maxHeight, error: err('settings.banner_height'),
+          help: 'Empty = the image keeps its own shape. Otherwise a wide screen crops it to this height; phones show the whole image, smaller (' + META.banner.minHeight + '–' + META.banner.maxHeight + ').' }),
+        h('div', { class: 'fb-panel__actions' }, h('button', { type: 'button', class: 'fba-btn fba-btn--ghost fba-btn--sm', text: 'Remove banner', onclick: function () {
+          st.banner_media_id = null; st.banner_alt = null; st.banner_height = null; changed({ panel: true });
+        } })));
+    }
+    nodes.push(bannerBox);
     Object.keys(META.formStyle).forEach(function (group) {
       var g = META.formStyle[group];
       var box = h('div', { class: 'fb-group' }, h('h4', { text: g.label }));
@@ -1107,7 +1206,7 @@
 
   function tabForPath(path) {
     if (/^fields\./.test(path) || path === 'fields') return 'field';
-    if (/^style_settings\./.test(path)) return 'design';
+    if (/^style_settings\./.test(path) || /^settings\.banner_/.test(path)) return 'design';
     if (/^custom_/.test(path)) return 'code';
     return 'settings';
   }

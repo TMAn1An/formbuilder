@@ -25,6 +25,7 @@ Route::prefix('forms')->name('forms.')->group(function () {
     Route::get('/submissions', [FormSubmissionController::class, 'overview'])->name('submissions.overview');
 
     Route::get('/{form}/edit', [FormController::class, 'edit'])->name('edit');
+    Route::post('/{form}/media', [PageMediaController::class, 'storeForForm'])->name('media.store');
     Route::put('/{form}/builder', [FormController::class, 'update'])->name('update');
     Route::post('/{form}/builder/sanitize', [FormController::class, 'sanitize'])->name('sanitize');
     Route::get('/{form}/preview', [FormController::class, 'preview'])->name('preview');

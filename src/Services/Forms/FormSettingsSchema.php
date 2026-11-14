@@ -6,7 +6,9 @@ use Illuminate\Validation\Rule;
 
 /**
  * Behavioral form settings (forms.settings JSON): display title, submit
- * text, success message/redirect, submission policy and schedule.
+ * text, success message/redirect, submission policy and schedule, and the
+ * optional banner image shown above the title (an image from the shared
+ * media library, page_media -- set from the builder's Design tab).
  * `schema_version` is stamped server-side on every save so a future change
  * to this JSON shape can be migrated deliberately instead of guessed at.
  */
@@ -15,6 +17,10 @@ final class FormSettingsSchema
     public const SCHEMA_VERSION = 1;
 
     public const DATETIME_FORMAT = 'Y-m-d\TH:i';
+
+    public const BANNER_MIN_HEIGHT = 60;
+
+    public const BANNER_MAX_HEIGHT = 600;
 
     /** @return array<string, mixed> */
     public static function defaults(): array
@@ -29,6 +35,9 @@ final class FormSettingsSchema
             'submission_limit' => null,
             'opens_at' => null,
             'closes_at' => null,
+            'banner_media_id' => null,
+            'banner_alt' => null,
+            'banner_height' => null,
             'schema_version' => self::SCHEMA_VERSION,
         ];
     }
@@ -50,6 +59,10 @@ final class FormSettingsSchema
             // "closes after opens" is checked in FormDefinitionValidator::after()
             // -- Laravel's after:<field> fails outright when that field is empty.
             "{$prefix}.closes_at" => ['nullable', 'date_format:'.self::DATETIME_FORMAT],
+            "{$prefix}.banner_media_id" => ['nullable', 'integer', Rule::exists('page_media', 'id')],
+            "{$prefix}.banner_alt" => ['nullable', 'string', 'max:300'],
+            // Maximum banner height in px (taller images are cropped to fit); empty = the image's own proportions.
+            "{$prefix}.banner_height" => ['nullable', 'integer', 'min:'.self::BANNER_MIN_HEIGHT, 'max:'.self::BANNER_MAX_HEIGHT],
         ];
     }
 
@@ -70,6 +83,9 @@ final class FormSettingsSchema
             'submission_limit' => isset($settings['submission_limit']) && $settings['submission_limit'] !== '' ? (int) $settings['submission_limit'] : null,
             'opens_at' => $blankToNull($settings['opens_at'] ?? null),
             'closes_at' => $blankToNull($settings['closes_at'] ?? null),
+            'banner_media_id' => isset($settings['banner_media_id']) && $settings['banner_media_id'] !== '' ? (int) $settings['banner_media_id'] : null,
+            'banner_alt' => is_string($settings['banner_alt'] ?? null) ? $blankToNull(trim($settings['banner_alt'])) : null,
+            'banner_height' => isset($settings['banner_height']) && $settings['banner_height'] !== '' ? (int) $settings['banner_height'] : null,
             'schema_version' => self::SCHEMA_VERSION,
         ];
     }

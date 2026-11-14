@@ -1,0 +1,239 @@
+<?php
+
+namespace TMAn1An\FormBuilder\Tests\Feature;
+
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
+use TMAn1An\FormBuilder\Enums\FormStatus;
+use TMAn1An\FormBuilder\Models\Form;
+use TMAn1An\FormBuilder\Models\FormSubmission;
+use TMAn1An\FormBuilder\Models\PageMedia;
+use TMAn1An\FormBuilder\Services\Forms\FieldSettingsSchema;
+use TMAn1An\FormBuilder\Tests\BuildsForms;
+use TMAn1An\FormBuilder\Tests\Fixtures\User;
+use TMAn1An\FormBuilder\Tests\TestCase;
+
+/**
+ * Pictures shown ON a form (not visitor uploads): the banner above the
+ * title (forms.settings banner_*) and the Image layout block
+ * (type image_block). Both use the shared media library (page_media) and
+ * the same upload validation as page images.
+ */
+class FormImagesTest extends TestCase
+{
+    use BuildsForms;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Storage::fake('public');
+        Storage::fake('local');
+    }
+
+    private function uploadToForm(User $user, Form $form, ?UploadedFile $file = null): PageMedia
+    {
+        $this->actingAs($user)->post("/admin/forms/{$form->id}/media", ['image' => $file ?? UploadedFile::fake()->image('banner.jpg', 1200, 400)], ['Accept' => 'application/json'])
+            ->assertCreated()->assertJsonStructure(['media' => ['id', 'url', 'name', 'width', 'height']]);
+
+        return PageMedia::query()->latest('id')->firstOrFail();
+    }
+
+    public function test_form_media_upload_is_validated_stored_publicly_and_listed_in_the_builder(): void
+    {
+        $user = User::factory()->create();
+        $form = $this->createFormVia($user);
+
+        $media = $this->uploadToForm($user, $form);
+
+        Storage::disk('public')->assertExists($media->path);
+        $this->assertSame('image/jpeg', $media->mime_type);
+        $this->assertSame($user->id, $media->uploaded_by);
+        $this->get($media->url())->assertOk()->assertHeader('Content-Type', 'image/jpeg');
+
+        foreach ([
+            'svg' => UploadedFile::fake()->createWithContent('logo.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+            'php disguised as jpg' => UploadedFile::fake()->createWithContent('shell.jpg', '<?php system($_GET["c"]); ?>'),
+            'too large' => UploadedFile::fake()->image('huge.jpg')->size(FieldSettingsSchema::mediaUploadMaxKb() + 1),
+        ] as $case => $bad) {
+            $this->actingAs($user)->postJson("/admin/forms/{$form->id}/media", ['image' => $bad])
+                ->assertStatus(422)->assertJsonValidationErrors(['image']);
+        }
+        $this->assertSame(1, PageMedia::count());
+
+        // The builder boots with the library, so the upload is selectable.
+        $html = $this->actingAs($user)->get("/admin/forms/{$form->id}/edit")->assertOk()->getContent();
+        $this->assertStringContainsString('"media":[{"id":'.$media->id, $html);
+        $this->assertStringContainsString('"mediaMaxKb":'.FieldSettingsSchema::mediaUploadMaxKb(), $html);
+    }
+
+    public function test_only_users_who_may_edit_the_form_can_upload_to_it(): void
+    {
+        $owner = User::factory()->create(['is_admin' => true]);
+        $form = $this->createFormVia($owner);
+        $image = fn () => ['image' => UploadedFile::fake()->image('a.jpg', 10, 10)];
+
+        auth()->logout();
+        $this->postJson("/admin/forms/{$form->id}/media", $image())->assertUnauthorized();
+
+        $outsider = User::factory()->create();
+        Gate::define('formbuilder.access', fn (User $u) => $u->is_admin);
+        $this->actingAs($outsider)->postJson("/admin/forms/{$form->id}/media", $image())->assertForbidden();
+
+        $form->update(['status' => FormStatus::Archived]);
+        $this->actingAs($owner)->postJson("/admin/forms/{$form->id}/media", $image())->assertForbidden();
+
+        $this->assertSame(0, PageMedia::count());
+    }
+
+    public function test_banner_settings_are_validated_saved_and_rendered_above_the_title(): void
+    {
+        $user = User::factory()->create();
+        $form = $this->createFormVia($user, 'Volunteer Signup');
+        $media = $this->uploadToForm($user, $form);
+        $fields = [$this->fieldDef('text', 'name', 'Name')];
+
+        $this->saveDefinition($user, $form, $fields, ['settings' => ['banner_media_id' => 999999, 'banner_height' => 5000, 'banner_alt' => str_repeat('x', 301)]])
+            ->assertStatus(422)->assertJsonValidationErrors(['settings.banner_media_id', 'settings.banner_height', 'settings.banner_alt']);
+
+        $this->saveDefinition($user, $form, $fields, ['intent' => 'publish', 'settings' => [
+            'banner_media_id' => (string) $media->id, 'banner_alt' => '  BECITHCON 2026 banner ', 'banner_height' => 220,
+        ]])->assertOk()->assertJsonPath('state.form.settings.banner_media_id', $media->id)->assertJsonPath('state.form.settings.banner_alt', 'BECITHCON 2026 banner');
+
+        $html = $this->get('/forms/'.$form->fresh()->slug)->assertOk()->getContent();
+        $this->assertMatchesRegularExpression(
+            '#<figure class="ff-banner">\s*<img src="'.preg_quote($media->url(), '#').'" alt="BECITHCON 2026 banner"\s+width="1200"\s+height="400"\s+style="max-height:220px;object-fit:cover"\s*>\s*</figure>\s*<h1 class="ff-title">Volunteer Signup</h1>#',
+            $html,
+        );
+    }
+
+    public function test_a_form_without_a_banner_renders_exactly_as_before(): void
+    {
+        $user = User::factory()->create();
+        $form = $this->publishedForm($user, [$this->fieldDef('text', 'name', 'Name')]);
+
+        $html = $this->get('/forms/'.$form->slug)->assertOk()->getContent();
+        $this->assertStringNotContainsString('ff-banner', $html);
+        $this->assertStringNotContainsString('ff-image', $html);
+        $this->assertSame([
+            'banner_media_id' => null, 'banner_alt' => null, 'banner_height' => null,
+        ], array_intersect_key($form->settings, array_flip(['banner_media_id', 'banner_alt', 'banner_height'])));
+    }
+
+    public function test_image_block_settings_are_validated_and_normalized(): void
+    {
+        $user = User::factory()->create();
+        $form = $this->createFormVia($user);
+        $media = $this->uploadToForm($user, $form);
+
+        $this->saveDefinition($user, $form, [
+            $this->fieldDef('image_block', 'img', 'Image', ['settings' => ['alt' => 'x']]), // no media_id
+            $this->fieldDef('image_block', 'img2', 'Image', ['settings' => [
+                'media_id' => 999999, 'max_width' => 99999, 'align' => 'justify', 'radius' => -1, 'link_url' => 'javascript:alert(1)',
+            ]]),
+        ])->assertStatus(422)->assertJsonValidationErrors([
+            'fields.0.settings.media_id', 'fields.1.settings.media_id', 'fields.1.settings.max_width',
+            'fields.1.settings.align', 'fields.1.settings.radius', 'fields.1.settings.link_url',
+        ]);
+
+        $this->saveDefinition($user, $form, [
+            $this->fieldDef('image_block', 'img', 'Image', ['settings' => [
+                'media_id' => (string) $media->id, 'alt' => ' Team photo ', 'max_width' => '480', 'align' => 'center',
+                'radius' => '12', 'link_url' => 'https://ieee.org', 'new_tab' => true, 'placeholder' => 'not an image-block key',
+            ]]),
+        ])->assertOk();
+
+        $field = $form->fresh()->fields()->sole();
+        $this->assertEquals([
+            'media_id' => $media->id, 'alt' => 'Team photo', 'max_width' => 480, 'align' => 'center',
+            'radius' => 12, 'link_url' => 'https://ieee.org', 'new_tab' => true,
+        ], $field->settings);
+        $this->assertFalse($field->required);
+    }
+
+    public function test_image_block_renders_on_the_public_form_and_collects_nothing(): void
+    {
+        $user = User::factory()->create();
+        $form = $this->createFormVia($user, 'Event Feedback');
+        $media = $this->uploadToForm($user, $form, UploadedFile::fake()->image('team.png', 640, 480));
+        $this->saveDefinition($user, $form, [
+            $this->fieldDef('image_block', 'team_photo', 'Image', ['settings' => [
+                'media_id' => $media->id, 'alt' => 'Our <team>', 'max_width' => 320, 'align' => 'right', 'radius' => 8,
+                'link_url' => 'https://ieee.org', 'new_tab' => true,
+            ]]),
+            $this->fieldDef('text', 'name', 'Name', ['required' => true]),
+        ], ['intent' => 'publish'])->assertOk();
+        auth()->logout();
+        $form = $form->fresh();
+
+        $html = $this->get('/forms/'.$form->slug)->assertOk()->getContent();
+        $this->assertStringContainsString('<figure class="ff-image" style="text-align:right">', $html);
+        $this->assertStringContainsString('<a href="https://ieee.org"  target="_blank" rel="noopener noreferrer" >', $html);
+        $this->assertStringContainsString('<img src="'.$media->url().'" alt="Our &lt;team&gt;" loading="lazy"', $html);
+        $this->assertStringContainsString('style="max-width:min(100%,320px);border-radius:8px"', $html);
+        // Not an input: nothing named after the block is posted or stored.
+        $this->assertStringNotContainsString('name="team_photo"', $html);
+
+        $this->post('/forms/'.$form->slug, ['name' => 'Ayesha', 'team_photo' => 'injected'])->assertSessionHasErrorsIn('form_'.$form->id);
+        $this->assertSame(0, FormSubmission::count(), 'A posted value for the Image block is refused, never stored.');
+        $this->post('/forms/'.$form->slug, ['name' => 'Ayesha'])->assertSessionHasNoErrors();
+        $submission = FormSubmission::sole();
+        $this->assertSame(['name'], $submission->values()->pluck('field_key')->all());
+
+        $this->actingAs($user)->get("/admin/forms/{$form->id}/submissions/export.xlsx")->assertOk();
+    }
+
+    public function test_image_block_can_be_hidden_by_a_condition(): void
+    {
+        $user = User::factory()->create();
+        $form = $this->createFormVia($user);
+        $media = $this->uploadToForm($user, $form);
+        $this->saveDefinition($user, $form, [
+            $this->fieldDef('radio', 'attending', 'Attending?', ['settings' => ['options' => [['label' => 'Yes', 'value' => 'yes'], ['label' => 'No', 'value' => 'no']]]]),
+            $this->fieldDef('image_block', 'venue_map', 'Image', [
+                'settings' => ['media_id' => $media->id, 'alt' => 'Venue map'],
+                'conditional_rules' => ['action' => 'show', 'match' => 'all', 'conditions' => [['field' => 'attending', 'operator' => 'equals', 'value' => 'yes']]],
+            ]),
+        ], ['intent' => 'publish'])->assertOk();
+
+        $html = $this->get('/forms/'.$form->fresh()->slug)->assertOk()->getContent();
+        $this->assertStringContainsString('data-ff-key="venue_map"', $html);
+        $this->assertStringContainsString('"key":"venue_map","type":"image_block","collectsValue":false,"rules":{"action":"show"', $html);
+    }
+
+    public function test_image_block_whose_image_is_missing_is_skipped_not_broken(): void
+    {
+        $user = User::factory()->create();
+        $form = $this->createFormVia($user);
+        $media = $this->uploadToForm($user, $form);
+        $this->saveDefinition($user, $form, [
+            $this->fieldDef('image_block', 'img', 'Image', ['settings' => ['media_id' => $media->id]]),
+            $this->fieldDef('text', 'name', 'Name'),
+        ], ['intent' => 'publish', 'settings' => ['banner_media_id' => $media->id]])->assertOk();
+
+        $media->delete(); // e.g. removed directly in the database
+
+        $html = $this->get('/forms/'.$form->fresh()->slug)->assertOk()->getContent();
+        $this->assertStringNotContainsString('ff-image', $html);
+        $this->assertStringNotContainsString('ff-banner', $html);
+        $this->assertStringContainsString('name="name"', $html);
+    }
+
+    public function test_duplicating_a_form_keeps_its_pictures_and_shares_the_media(): void
+    {
+        $user = User::factory()->create();
+        $form = $this->createFormVia($user, 'Original');
+        $media = $this->uploadToForm($user, $form);
+        $this->saveDefinition($user, $form, [
+            $this->fieldDef('image_block', 'img', 'Image', ['settings' => ['media_id' => $media->id]]),
+        ], ['settings' => ['banner_media_id' => $media->id]])->assertOk();
+
+        $this->actingAs($user)->post("/admin/forms/{$form->id}/duplicate")->assertRedirect();
+        $copy = Form::query()->latest('id')->firstOrFail();
+
+        $this->assertNotSame($form->id, $copy->id);
+        $this->assertSame($media->id, $copy->settings['banner_media_id']);
+        $this->assertSame($media->id, $copy->fields()->sole()->settings['media_id']);
+        $this->assertSame(1, PageMedia::count());
+    }
+}

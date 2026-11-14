@@ -6,9 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * An image uploaded for page building (public content). Stored on
- * config('formbuilder.storage.media_disk'); referenced from Image blocks by
- * id, exposed publicly only by its random `uuid`.
+ * An image in the shared media library (public content): uploaded from the
+ * page builder or the form builder. Stored on
+ * config('formbuilder.storage.media_disk'); referenced by id from page Image
+ * blocks, form Image blocks and form banners, exposed publicly only by its
+ * random `uuid`. Never deleted by removing a block or banner.
  */
 class PageMedia extends Model
 {
@@ -48,5 +50,11 @@ class PageMedia extends Model
         }
 
         return route('formbuilder.media', ['media' => $this->uuid, 'filename' => basename($this->path)]);
+    }
+
+    /** The shape both builders' media pickers use. @return array<string, mixed> */
+    public function toBuilderArray(): array
+    {
+        return ['id' => $this->id, 'url' => $this->url(), 'name' => $this->original_name, 'width' => $this->width, 'height' => $this->height];
     }
 }

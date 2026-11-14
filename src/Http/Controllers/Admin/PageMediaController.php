@@ -9,28 +9,45 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use TMAn1An\FormBuilder\Http\Controllers\Controller;
+use TMAn1An\FormBuilder\Models\Form;
 use TMAn1An\FormBuilder\Models\Page;
 use TMAn1An\FormBuilder\Models\PageMedia;
 use TMAn1An\FormBuilder\Services\Forms\FieldSettingsSchema;
 use TMAn1An\FormBuilder\Services\Forms\FormSubmissionService;
-use TMAn1An\FormBuilder\Services\Pages\PageBuilderState;
 
 /**
- * Image uploads for page Image blocks (public content). Same validation as
- * form image uploads: detected MIME (jpg/png/webp only -- no SVG), size,
- * and a real image decode; stored under a random name with an extension
- * derived from the detected type, on config('formbuilder.storage.media_disk').
+ * Uploads to the shared media library (public content), used by page Image
+ * blocks and by form Image blocks / banners. Same validation as form image
+ * uploads: detected MIME (jpg/png/webp only -- no SVG), size, and a real
+ * image decode; stored under a random name with an extension derived from
+ * the detected type, on config('formbuilder.storage.media_disk').
+ *
+ * Two entry points, one per builder, each authorized against what that
+ * admin is editing: store() needs permission to create pages, storeForForm()
+ * needs permission to edit that form.
  */
 class PageMediaController extends Controller
 {
-    public function store(Request $request, PageBuilderState $state): JsonResponse
+    public function store(Request $request): JsonResponse
     {
         $this->authorize('create', Page::class);
 
+        return $this->upload($request);
+    }
+
+    public function storeForForm(Request $request, Form $form): JsonResponse
+    {
+        $this->authorize('update', $form);
+
+        return $this->upload($request);
+    }
+
+    private function upload(Request $request): JsonResponse
+    {
         $request->validate([
             'image' => ['required', 'file',
                 'mimetypes:'.implode(',', FieldSettingsSchema::IMAGE_TYPES),
-                'max:'.(int) config('formbuilder.uploads.max_kb', 10240),
+                'max:'.FieldSettingsSchema::mediaUploadMaxKb(),
                 function (string $attribute, mixed $value, Closure $fail) {
                     if ($value instanceof UploadedFile && @getimagesize($value->getRealPath()) === false) {
                         $fail('The image must be a valid JPG, PNG or WebP file.');
@@ -62,6 +79,6 @@ class PageMediaController extends Controller
             'uploaded_by' => $request->user()?->getAuthIdentifier(),
         ]);
 
-        return response()->json(['media' => $state->media($media)], 201);
+        return response()->json(['media' => $media->toBuilderArray()], 201);
     }
 }

@@ -32,6 +32,7 @@ enum FormFieldType: string
     case Divider = 'divider';
     case Section = 'section';
     case Html = 'html';
+    case ImageBlock = 'image_block';
 
     public function label(): string
     {
@@ -55,6 +56,7 @@ enum FormFieldType: string
             self::Divider => 'Divider',
             self::Section => 'Section',
             self::Html => 'HTML block',
+            self::ImageBlock => 'Image',
         };
     }
 
@@ -63,7 +65,7 @@ enum FormFieldType: string
     {
         return match ($this) {
             self::Select, self::Radio, self::CheckboxGroup, self::Checkbox => 'choice',
-            self::Heading, self::Paragraph, self::Divider, self::Section, self::Html => 'layout',
+            self::Heading, self::Paragraph, self::Divider, self::Section, self::Html, self::ImageBlock => 'layout',
             default => 'input',
         };
     }
@@ -137,6 +139,9 @@ enum FormFieldType: string
             self::Html => ['content'],
             self::Divider => [],
             self::Image => ['max_size_kb', 'allowed_types'],
+            // A picture shown on the form (not a visitor upload): an image from
+            // the shared media library (page_media), like the page builder's.
+            self::ImageBlock => ['media_id', 'alt', 'max_width', 'align', 'radius', 'link_url', 'new_tab'],
         };
 
         $base = match (true) {

@@ -75,6 +75,7 @@ class FormController extends Controller
                     'public' => $this->fb()->public('forms.show', ['form' => $form->slug]),
                     'publicBase' => preg_replace('#[^/]+$#', '', $this->fb()->public('forms.show', ['form' => 'x'])),
                     'submissions' => $this->fb()->admin('forms.submissions.index', $form),
+                    'media' => $this->fb()->admin('forms.media.store', $form),
                 ],
             ],
         ]);

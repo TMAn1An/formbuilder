@@ -27,7 +27,8 @@ audit trail, layouts, URLs) is described in [INTEGRATION.md](INTEGRATION.md).
 19. [Known limitations](#known-limitations)
 20. [Submit button styling](#submit-button-styling)
 21. [Image upload fields](#image-upload-fields)
-22. [Public URLs, preview, View live, copy link](#public-urls-preview-view-live-copy-link)
+22. [Pictures on the form: banner and Image block](#pictures-on-the-form-banner-and-image-block)
+23. [Public URLs, preview, View live, copy link](#public-urls-preview-view-live-copy-link)
 
 ## Database schema
 
@@ -108,7 +109,7 @@ accepts (`settingKeys()`); the builder receives the same metadata (`builderMeta(
 |---|---|---|
 | Inputs | `text`, `long_text`, `email`, `number`, `phone`, `date`, `time`, `datetime`, `hidden` | yes (`hidden`: server-set) |
 | Choices | `select` (dropdown), `radio`, `checkbox_group`, `checkbox` (single) | yes |
-| Layout & content | `heading`, `paragraph`, `divider`, `section`, `html` | no |
+| Layout & content | `heading`, `paragraph`, `divider`, `section`, `html`, `image_block` (Image) | no |
 
 Field settings (only those valid for the type are accepted): label, key, required, placeholder, help
 text, default value, width, CSS class, min/max (numbers or date/time bounds), step, max length, pattern
@@ -416,6 +417,40 @@ Display: the submission page shows a thumbnail served by the admin-only route
 `…/forms/{form}/submissions/{submission}/files/{file}` (bound with `scopeBindings`, `nosniff`,
 stored MIME type). Excel export writes that authenticated URL into the cell, never the image or
 its storage path.
+
+## Pictures on the form: banner and Image block
+
+Two ways to **show** a picture on a form (as opposed to the `image` field, where visitors upload
+one). Both use the shared media library, the `page_media` table that page Image blocks use, so an
+image uploaded in either builder can be chosen in both. No database migration was needed.
+
+**Banner** (builder → Design tab → *Banner image*): one image across the top of the form, above
+the title. Stored in `forms.settings` as `banner_media_id`, `banner_alt` and `banner_height`
+(optional maximum height, 60–600 px: the image keeps its own shape until it would be taller than
+that, then `object-fit: cover` crops it, so phones show the whole banner, smaller; empty keeps the
+image's own proportions). It shows wherever the form renders: the public page,
+the admin preview, and forms embedded in pages.
+
+**Image block** (palette → Layout & content → *Image*, type `image_block`): a picture anywhere
+between fields. Settings: image (`media_id`, required), alt text, maximum width (px, ≤ 2000, never
+wider than the screen), alignment, rounded corners (0–200 px), optional link (`https://`,
+`http://`, `mailto:`, `tel:`, `/` or `#` only) and "open in a new tab", plus the usual width, CSS
+class, style overrides and show/hide conditions. It collects nothing: no submission value, no
+Excel column, and a value posted under its key is refused like any unknown field.
+
+**Uploading** (`POST {admin}/forms/{form}/media`, `PageMediaController::storeForForm`): needs
+permission to edit that form (`FormPolicy::update`, so not on archived forms). The page builder's
+`POST {admin}/pages/media` uses the same code. JPG/PNG/WebP only, checked by detected MIME type
+plus an image decode; the size limit is `FieldSettingsSchema::mediaUploadMaxKb()`, i.e.
+`uploads.max_kb` lowered to PHP's `upload_max_filesize` / `post_max_size` when those are smaller,
+and the builder states that limit and checks it before uploading. Stored publicly on
+`storage.media_disk` under a random name, and served by its uuid URL.
+
+Safety: alt text is escaped; the style values (height, max width, radius, alignment) are validated
+integers/enums rebuilt in `FormPresenter`; the link is re-checked with
+`PageBlockSettingsSchema::isSafeUrl()` before it is printed. Media is never deleted by removing a
+banner or block, or by archiving a form. If an image row disappears anyway, the banner or block is
+simply left out. Media is public content: don't upload anything that must stay private.
 
 ## Public URLs, preview, View live, copy link
 

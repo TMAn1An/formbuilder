@@ -128,11 +128,12 @@ and one validator, so an embedded form can't drift from the standalone one.
 ## Page images
 
 Uploaded via `POST {admin}/pages/media` (needs `canAccess`): JPG/PNG/WebP only, checked by
-detected MIME type plus an image decode, max `uploads.max_kb`. Stored on `storage.media_disk`
+detected MIME type plus an image decode, max `uploads.max_kb` (lowered to PHP's upload limits when those are smaller -- `FieldSettingsSchema::mediaUploadMaxKb()`). Stored on `storage.media_disk`
 under `form-builder/pages/{yyyy}/{mm}/{uuid}.{ext}`. Image blocks reference the `page_media` row
 by id. Public URLs use the random uuid (`/formbuilder-assets/media/{uuid}/…`), so numeric ids are
 not addressable, and no `storage:link` is needed. Images uploaded for a draft page are reachable
 by their (unguessable) URL, as is usual for web media.
+The same library is used by form banners and form Image blocks (see FORMS.md §Pictures on the form).
 
 ## Publishing and preview
 
