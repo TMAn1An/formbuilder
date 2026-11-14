@@ -9,7 +9,7 @@ use Illuminate\Validation\Rule;
  * text, success message/redirect, submission policy and schedule, and the
  * optional banner: an image from the shared media library (page_media),
  * shown as its own section above or below the form card, either as wide as
- * the form or the full page width (set from the builder's Design tab), and
+ * the form or the full page width (set from the builder's Settings tab), and
  * `multi_step`: show one section at a time with Next/Back (every Section
  * field starts a step; done in the browser by form-runtime.js, so the server
  * still receives and validates the whole form in one submission).

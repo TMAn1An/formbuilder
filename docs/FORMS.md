@@ -425,7 +425,7 @@ Two ways to **show** a picture on a form (as opposed to the `image` field, where
 one). Both use the shared media library, the `page_media` table that page Image blocks use, so an
 image uploaded in either builder can be chosen in both. No database migration was needed.
 
-**Banner** (builder → Design tab → *Banner image*): one image shown as **its own section, outside
+**Banner** (builder → Settings tab → *Banner image*): one image shown as **its own section, outside
 the form box**, either **above** or **below** the form (`banner_position`: `top` | `bottom`), and
 either **as wide as the form** (lined up with it, same max width and alignment) or the **full page
 width** (`banner_width`: `form` | `full`). Also stored in `forms.settings`: `banner_media_id`,
@@ -462,7 +462,9 @@ simply left out. Media is public content: don't upload anything that must stay p
 ## Step-by-step forms
 
 Per form, off by default: builder → Settings → *Layout* → **Show one section at a time (step by
-step)**, stored as `forms.settings.multi_step`.
+step)**, stored as `forms.settings.multi_step`. The same switch also appears in every Section
+field's panel (*Step by step*), with a note saying whether it is on and which step that section
+is.
 
 - **Steps come from Section fields.** Each Section starts a new step; fields before the first
   Section are step 1. With no Sections the form shows as one page. The builder marks where each
