@@ -101,6 +101,14 @@ Server classes (all in `app/Services/Forms/`):
 | `FormPresenter` / `FormBuilderState` | view data for the renderer / the builder |
 | `Contracts\AuditLogger` (host) | receives audit events |
 
+### Builder guidance
+
+The builder is meant to be usable without reading this file: with no field selected, the right
+panel shows a short "How to build this form" guide; every tab starts with a one-line hint; the
+technical **Key** and **CSS class** of a field are folded under *Advanced* (opened automatically
+when they have an error); and the step-by-step switch appears both in Settings → Layout and in
+every Section's panel, with an "Add a Section" shortcut when steps are on but the form has none.
+
 ## Field types
 
 `TMAn1An\FormBuilder\Enums\FormFieldType` is the single source of truth for what each type is and which settings it

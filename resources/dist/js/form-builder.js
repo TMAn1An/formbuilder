@@ -725,9 +725,15 @@
   function renderFieldPanel() {
     var f = selectedField();
     if (!f) {
-      return [h('p', { class: 'fb-panel__empty', text: canEdit
-        ? 'Select a field on the form to edit it, or add one from the left.'
-        : 'Select a field to inspect its settings.' })];
+      if (!canEdit) return [h('p', { class: 'fb-panel__empty', text: 'Select a field to inspect its settings.' })];
+      return [h('div', { class: 'fb-guide' },
+        h('h4', { text: 'How to build this form' }),
+        h('ol', null,
+          h('li', null, h('strong', { text: 'Add fields' }), ' — click a field type on the left (Text, Email, Dropdown…). It appears on the form in the middle.'),
+          h('li', null, h('strong', { text: 'Edit a field' }), ' — click it on the form; its options open here. Tick “Required” for must-answer questions.'),
+          h('li', null, h('strong', { text: 'Pages, banner, after submit' }), ' — the ', h('em', { text: 'Settings' }), ' tab: show one section at a time, add a banner picture, and the thank-you message. Colors and sizes are under ', h('em', { text: 'Design' }), '.'),
+          h('li', null, h('strong', { text: 'Save draft → Preview → Publish' }), ' — drafts save automatically; Preview shows exactly what visitors will see; Publish makes the form live.')),
+        h('p', { class: 'fb-guide__tip', text: 'Tip: to split a long form into pages, add a Section (Layout & content) where each page starts, then turn on “Show one section at a time” in Settings.' }))];
     }
     var meta = TYPES[f.type];
     var index = state.fields.indexOf(f);
@@ -764,7 +770,6 @@
         ? 'Locked: submissions are stored under this key.'
         : 'Stable machine name used in submissions and exports (a-z, 0-9, _). Follows the label until you edit it here; locked once the form has submissions for this field.',
     });
-    basics.append(keyCtl);
 
     if (meta.supportsRequired) {
       basics.append(checkCtl('Required', f.required, function (v) { f.required = v; changed(); },
@@ -789,10 +794,18 @@
     // --- type-specific settings
     var settings = h('div', { class: 'fb-group' }, h('h4', { text: 'Settings' }));
     meta.settings.forEach(function (key) {
+      if (key === 'css_class') return; // under Advanced
       var ctl = settingControl(f, key, p);
       if (ctl) settings.append(ctl);
     });
     if (settings.childElementCount > 1) nodes.push(settings);
+
+    // --- technical options most admins never need, folded away
+    var advancedError = err(p + '.key') || err(p + '.settings.css_class');
+    var advanced = h('details', { class: 'fb-group', open: advancedError ? true : null },
+      h('summary', { text: 'Advanced (key' + (meta.settings.indexOf('css_class') !== -1 ? ', CSS class' : '') + ')' }), keyCtl);
+    if (meta.settings.indexOf('css_class') !== -1) advanced.append(settingControl(f, 'css_class', p));
+    nodes.push(advanced);
 
     // --- style overrides
     var applies = f.type === 'hidden' ? [] : (meta.collectsValue ? ['input', 'all'] : ['content', 'all']);
@@ -1172,7 +1185,11 @@
       checkCtl('Show one section at a time (step by step)', !!st.multi_step, function (v) { st.multi_step = v; changed({ panel: true }); }, {
         help: 'Each Section field starts a new step. Visitors fill in one step, press Next for the next one, and submit on the last step. '
           + (st.multi_step && !sections ? 'Add Section fields (Layout & content) to split this form into steps; until then it shows as one page.' : 'Without JavaScript the whole form shows at once.'),
-      })));
+      }),
+      st.multi_step && !sections && canEdit ? h('button', { type: 'button', class: 'fba-btn fba-btn--ghost fba-btn--sm', text: '+ Add a Section at the top (step 1)', onclick: function () {
+        var first = activeFields()[0];
+        addField('section', first ? first.uid : null, 'before');
+      } }) : null));
 
     var bannerBox = h('div', { class: 'fb-group' }, h('h4', { text: 'Banner image' }),
       h('p', { class: 'help', style: 'font-size:.74rem;color:var(--muted);margin:0 0 8px', text: 'A picture shown as its own section above or below the form (outside the form box).' }),
@@ -1261,6 +1278,13 @@
     var scroller = els.panel.parentElement;
     var top = scroller.scrollTop;
     var nodes = { field: renderFieldPanel, design: renderDesignPanel, settings: renderSettingsPanel, code: renderCodePanel }[state.tab]();
+    var hint = {
+      field: selectedField() ? 'Options for the field selected on the form.' : null,
+      design: 'Colors, fonts, sizes and the submit button’s look.',
+      settings: 'Title, one-section-at-a-time pages, banner picture, thank-you message, and who can submit.',
+      code: 'Advanced: custom CSS / HTML / JavaScript for this form.',
+    }[state.tab];
+    if (hint) nodes = [h('p', { class: 'fb-tab-hint', text: hint })].concat(nodes);
     // A disabled <fieldset> natively locks every control for read-only users.
     var fieldset = h('fieldset', { disabled: !canEdit, style: 'border:0;margin:0;padding:0;min-width:0' });
     append(fieldset, nodes);
