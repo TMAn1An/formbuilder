@@ -28,7 +28,8 @@ audit trail, layouts, URLs) is described in [INTEGRATION.md](INTEGRATION.md).
 20. [Submit button styling](#submit-button-styling)
 21. [Image upload fields](#image-upload-fields)
 22. [Pictures on the form: banner and Image block](#pictures-on-the-form-banner-and-image-block)
-23. [Public URLs, preview, View live, copy link](#public-urls-preview-view-live-copy-link)
+23. [Step-by-step forms](#step-by-step-forms)
+24. [Public URLs, preview, View live, copy link](#public-urls-preview-view-live-copy-link)
 
 ## Database schema
 
@@ -451,6 +452,31 @@ integers/enums rebuilt in `FormPresenter`; the link is re-checked with
 `PageBlockSettingsSchema::isSafeUrl()` before it is printed. Media is never deleted by removing a
 banner or block, or by archiving a form. If an image row disappears anyway, the banner or block is
 simply left out. Media is public content: don't upload anything that must stay private.
+
+## Step-by-step forms
+
+Per form, off by default: builder → Settings → *Layout* → **Show one section at a time (step by
+step)**, stored as `forms.settings.multi_step`.
+
+- **Steps come from Section fields.** Each Section starts a new step; fields before the first
+  Section are step 1. With no Sections the form shows as one page. The builder marks where each
+  step starts.
+- **Visitors** see "Step 2 of 4 · <section title>" with a progress bar, **Back** and **Next**,
+  and the submit button only on the last step. Next checks the current step's answers with the
+  browser's own validation (required, email, number ranges, patterns…). Pressing Enter on an
+  earlier step acts as Next. A step whose fields are all hidden by conditions is skipped, and the
+  step count follows the conditions as answers change.
+- **Submitting** still sends the whole form in one request, validated by the server exactly as
+  before. Before submitting, every step is checked; the visitor is taken to the first problem. If
+  the server rejects the submission, the page opens on the step holding the first error, with the
+  earlier answers kept.
+- **Where it runs:** `resources/dist/js/form-runtime.js` (`setupSteps()`), triggered by
+  `data-ff-steps` on the `<form>`. Steps are only hidden with a CSS class (`.ff-step-hidden`),
+  never disabled, so every answer is submitted. Without JavaScript the whole form shows at once.
+  It also applies to forms embedded in pages. In the admin preview (`data-ff-preview`) Next
+  doesn't insist on answers, so every step can be looked at.
+- Button texts are fixed ("Back", "Next"); the submit button keeps its configured text and style.
+  "Back" uses the same button style, outlined.
 
 ## Public URLs, preview, View live, copy link
 
