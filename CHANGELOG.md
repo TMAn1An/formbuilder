@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — 2026-11-14
+
+### Form Builder
+- **Banner image** (Design tab): one picture across the top of a form, above the title, with alt
+  text and an optional maximum height (wide screens crop it; phones show the whole image). Stored in
+  `forms.settings` (`banner_media_id`, `banner_alt`, `banner_height`).
+- **Image block** (palette → Layout & content → Image, type `image_block`): a picture anywhere
+  in the form, with alt text, maximum width, alignment, rounded corners, optional link and
+  show/hide conditions. Collects nothing.
+- Both use the page builder's media library (`page_media`); no migration. New upload route
+  `POST {admin}/forms/{form}/media` (needs permission to edit that form).
+- Media uploads (forms and pages) now use the size limit the server really accepts: the package
+  limit lowered to PHP's `upload_max_filesize` / `post_max_size` when those are smaller. The
+  builders state that limit, and the form builder checks it before uploading.
+  See docs/FORMS.md §Pictures on the form.
+
 ## 0.1.0 — 2026-10-10 (unreleased)
 
 First release as a standalone package. The Form Builder previously lived inside the IEEE IUBAT

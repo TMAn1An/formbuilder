@@ -10,6 +10,7 @@ use TMAn1An\FormBuilder\Models\Form;
 use TMAn1An\FormBuilder\Models\Page;
 use TMAn1An\FormBuilder\Models\PageBlock;
 use TMAn1An\FormBuilder\Models\PageMedia;
+use TMAn1An\FormBuilder\Services\Forms\FieldSettingsSchema;
 use TMAn1An\FormBuilder\Styling\ButtonStyleSchema;
 use TMAn1An\FormBuilder\Styling\PageStyleSchema;
 use TMAn1An\FormBuilder\Support\CssScoper;
@@ -77,7 +78,7 @@ class PageBuilderState
     /** @return array<string, mixed> */
     public function media(PageMedia $media): array
     {
-        return ['id' => $media->id, 'url' => $media->url(), 'name' => $media->original_name, 'width' => $media->width, 'height' => $media->height];
+        return $media->toBuilderArray();
     }
 
     /** @return array<string, mixed> */
@@ -89,7 +90,8 @@ class PageBuilderState
             'buttonStyle' => ButtonStyleSchema::properties(),
             'imageLengthMax' => PageBlockSettingsSchema::IMAGE_LENGTH_MAX,
             'refPattern' => '^[A-Za-z0-9_-]{1,40}$',
-            'uploads' => ['maxKb' => (int) config('formbuilder.uploads.max_kb', 10240)],
+            // What the server really accepts (PHP's limits included), so the label is honest.
+            'uploads' => ['maxKb' => FieldSettingsSchema::mediaUploadMaxKb()],
         ];
     }
 }

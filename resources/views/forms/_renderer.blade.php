@@ -13,6 +13,8 @@
     $hideTitle / $hideDescription
   Errors come from this form's own error bag ("form_{id}"), so several
   forms on one page never show each other's errors.
+  Banner / Image-block pictures come from the media library (page_media);
+  their style values are validated integers/enums built in FormPresenter.
   Everything user-authored is escaped with {{ }} except:
     - $presented['styleSheet']  validated/enum-mapped design CSS + scoped custom CSS (`<` escaped)
     - htmlBefore/htmlAfter/field html  sanitized by HtmlSanitizer at render time
@@ -30,6 +32,14 @@
 @endphp
 <style>{!! $presented['styleSheet'] !!}</style>
 <div class="ff-form" id="{{ $presented['wrapperId'] }}">
+  @if ($presented['banner'])
+    @php $banner = $presented['banner']; @endphp
+    <figure class="ff-banner">
+      <img src="{{ $banner['url'] }}" alt="{{ $banner['alt'] }}"
+        @if ($banner['width']) width="{{ $banner['width'] }}" @endif @if ($banner['height']) height="{{ $banner['height'] }}" @endif
+        @if ($banner['style'] !== '') style="{{ $banner['style'] }}" @endif>
+    </figure>
+  @endif
   @if (empty($hideTitle))
     <{{ $titleTag }} class="ff-title">{{ $form->title() }}</{{ $titleTag }}>
   @endif
@@ -78,6 +88,9 @@
             <input type="hidden" name="{{ $key }}" value="{{ $default }}">
             @continue
           @endif
+          @if ($type === T::ImageBlock && ! $f['picture'])
+            @continue {{-- its image no longer exists --}}
+          @endif
 
           <div class="{{ $wrapperClasses }}" data-ff-key="{{ $key }}" @if ($f['inlineStyle'] !== '') style="{{ $f['inlineStyle'] }}" @endif>
             @switch($type)
@@ -105,6 +118,17 @@
 
               @case(T::Html)
                 <div class="ff-html">{!! $f['html'] !!}</div>
+                @break
+
+              @case(T::ImageBlock)
+                @php $pic = $f['picture']; @endphp
+                <figure class="ff-image" style="text-align:{{ $pic['align'] }}">
+                  @if ($pic['link'])<a href="{{ $pic['link'] }}" @if ($pic['newTab']) target="_blank" rel="noopener noreferrer" @endif>@endif
+                  <img src="{{ $pic['url'] }}" alt="{{ $pic['alt'] }}" loading="lazy"
+                    @if ($pic['width']) width="{{ $pic['width'] }}" @endif @if ($pic['height']) height="{{ $pic['height'] }}" @endif
+                    @if ($pic['style'] !== '') style="{{ $pic['style'] }}" @endif>
+                  @if ($pic['link'])</a>@endif
+                </figure>
                 @break
 
               @case(T::Radio)
