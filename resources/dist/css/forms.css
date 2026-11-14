@@ -201,6 +201,19 @@
 .ff-button:hover, .ff-button:focus-visible { background: var(--ff-btn-bg-hover, #002855); color: var(--ff-btn-text, #ffffff); text-decoration: none; }
 .ff-button:focus-visible { outline: 3px solid color-mix(in srgb, var(--ff-btn-bg, #00629b) 35%, transparent); outline-offset: 2px; }
 .ff-button:disabled { opacity: .6; cursor: not-allowed; }
+.ff-button[hidden] { display: none; }
+
+/* -------------------------------------------- step-by-step forms (form-runtime.js) */
+.ff-form .ff-step-hidden { display: none !important; }
+.ff-form .ff-steps { margin: 0 0 var(--ff-gap); }
+.ff-form .ff-steps__label { margin: 0 0 6px; color: var(--ff-label-color); font-weight: 600; font-size: .95em; }
+.ff-form .ff-steps__label:focus { outline: none; }
+.ff-form .ff-steps__bar { height: 6px; border-radius: 999px; background: var(--ff-border-color); overflow: hidden; }
+.ff-form .ff-steps__bar span { display: block; height: 100%; width: 0; background: var(--ff-btn-bg, #00629b); transition: width .2s; }
+.ff-form .ff-actions--steps { flex-wrap: wrap; gap: 12px; }
+.ff-button.ff-button--secondary { color: var(--ff-btn-bg, #00629b); background: transparent; border: 1px solid currentColor; }
+.ff-button.ff-button--secondary:hover, .ff-button.ff-button--secondary:focus-visible { color: var(--ff-btn-bg-hover, #002855); background: transparent; }
+@media (prefers-reduced-motion: reduce) { .ff-form .ff-steps__bar span { transition: none; } }
 
 .ff-form .ff-alert { margin: 0 0 var(--ff-gap); padding: 12px 16px; border-radius: 8px; border: 1px solid; }
 .ff-form .ff-alert--success { background: var(--ff-success-bg); color: var(--ff-success-text); border-color: var(--ff-success-border); white-space: pre-line; }

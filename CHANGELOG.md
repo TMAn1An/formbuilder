@@ -3,6 +3,12 @@
 ## Unreleased — 2026-11-14
 
 ### Form Builder
+- **Step-by-step forms** (Settings → Layout → "Show one section at a time"): every Section field
+  starts a step; visitors use Back / Next with a "Step 2 of 4" progress bar, and submit on the
+  last step. Next checks the current step's answers, steps hidden by conditions are skipped, and
+  after a server-side error the form opens on the step with the error. The whole form is still
+  submitted and validated in one request; without JavaScript it shows on one page. Stored as
+  `forms.settings.multi_step` (off by default). See docs/FORMS.md §Step-by-step forms.
 - **Banner image** (Design tab): one picture across the top of a form, above the title, with alt
   text and an optional maximum height (wide screens crop it; phones show the whole image). Stored in
   `forms.settings` (`banner_media_id`, `banner_alt`, `banner_height`).

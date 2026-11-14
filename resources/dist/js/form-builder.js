@@ -429,6 +429,8 @@
       draggable: canEdit ? 'true' : null, style: fieldStyleDeclarations(f) || null,
       'aria-label': meta.label + ': ' + f.label,
     });
+    var stepNo = stepStarts()[f.uid];
+    if (stepNo) el.append(h('div', { class: 'fb-step-marker', text: 'Step ' + stepNo + ' — visitors see this section on its own page' }));
     append(el, renderFieldBody(f));
 
     var flags = h('div', { class: 'fb-item__flags' },
@@ -449,6 +451,25 @@
         h('button', { type: 'button', title: f.has_submissions ? 'Archive' : 'Remove', 'aria-label': (f.has_submissions ? 'Archive ' : 'Remove ') + f.label, text: '✕', onclick: stop(function () { removeField(f.uid); }) })));
     }
     return el;
+  }
+
+  /**
+   * With "one section at a time" on: the step number each Section starts,
+   * using the same split as form-runtime.js (fields before the first
+   * Section are step 1). Empty object when the form is a single page.
+   */
+  function stepStarts() {
+    var starts = {};
+    if (!state.form.settings.multi_step) return starts;
+    var step = 0;
+    var itemsInStep = 0;
+    activeFields().forEach(function (f) {
+      if (f.type === 'hidden') return;
+      if (!step || (f.type === 'section' && itemsInStep)) { step++; itemsInStep = 0; }
+      if (f.type === 'section' && !itemsInStep) starts[f.uid] = step;
+      itemsInStep++;
+    });
+    return step > 1 ? starts : {};
   }
 
   function requiredMark(f) {
@@ -1127,6 +1148,13 @@
       textCtl('URL slug', state.form.slug, function (v) { state.form.slug = v.trim(); changed(); }, {
         maxlength: 100, error: err('slug'),
         help: URLS.publicBase + (state.form.slug || '') + (state.form.status === 'active' ? '  — this form is live: changing the slug breaks links already shared.' : ''),
+      })));
+
+    var sections = activeFields().filter(function (f) { return f.type === 'section'; }).length;
+    nodes.push(h('div', { class: 'fb-group' }, h('h4', { text: 'Layout' }),
+      checkCtl('Show one section at a time (step by step)', !!st.multi_step, function (v) { st.multi_step = v; changed({ panel: true }); }, {
+        help: 'Each Section field starts a new step. Visitors fill in one step, press Next for the next one, and submit on the last step. '
+          + (st.multi_step && !sections ? 'Add Section fields (Layout & content) to split this form into steps; until then it shows as one page.' : 'Without JavaScript the whole form shows at once.'),
       })));
 
     nodes.push(h('div', { class: 'fb-group' }, h('h4', { text: 'After submitting' }),

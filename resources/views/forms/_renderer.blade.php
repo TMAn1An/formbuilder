@@ -65,7 +65,11 @@
       </div>
     @endif
 
-    <form method="POST" action="{{ $action ?? '#' }}" enctype="multipart/form-data" @if (! $action) onsubmit="return false" @endif>
+    {{-- data-ff-steps: form-runtime.js shows one section at a time (Next/Back);
+         without JavaScript the whole form shows. data-ff-preview: Next doesn't
+         insist on required answers in the admin preview. --}}
+    <form method="POST" action="{{ $action ?? '#' }}" enctype="multipart/form-data" @if (! $action) onsubmit="return false" data-ff-preview @endif
+      @if ($form->setting('multi_step')) data-ff-steps @endif>
       @csrf
       @if (! empty($embedPageId))
         <input type="hidden" name="_embed_page" value="{{ (int) $embedPageId }}">
