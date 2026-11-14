@@ -425,19 +425,25 @@ Two ways to **show** a picture on a form (as opposed to the `image` field, where
 one). Both use the shared media library, the `page_media` table that page Image blocks use, so an
 image uploaded in either builder can be chosen in both. No database migration was needed.
 
-**Banner** (builder → Design tab → *Banner image*): one image across the top of the form, above
-the title. Stored in `forms.settings` as `banner_media_id`, `banner_alt` and `banner_height`
-(optional maximum height, 60–600 px: the image keeps its own shape until it would be taller than
-that, then `object-fit: cover` crops it, so phones show the whole banner, smaller; empty keeps the
-image's own proportions). It shows wherever the form renders: the public page,
-the admin preview, and forms embedded in pages.
+**Banner** (builder → Design tab → *Banner image*): one image shown as **its own section, outside
+the form box**, either **above** or **below** the form (`banner_position`: `top` | `bottom`), and
+either **as wide as the form** (lined up with it, same max width and alignment) or the **full page
+width** (`banner_width`: `form` | `full`). Also stored in `forms.settings`: `banner_media_id`,
+`banner_alt` and `banner_height` (optional maximum height, 60–600 px: the image keeps its own
+shape until it would be taller than that, then `object-fit: cover` crops it, so phones show the
+whole banner, smaller). Markup: `resources/views/forms/_banner.blade.php`, a
+`<figure class="ff-banner-section" id="ff-form-{id}-banner">` placed before or after the
+`.ff-form` card; the form's design variables are emitted for that id too. It shows wherever the
+form renders: the public page, the admin preview, and forms embedded in pages.
 
 **Image block** (palette → Layout & content → *Image*, type `image_block`): a picture anywhere
 between fields. Settings: image (`media_id`, required), alt text, maximum width (px, ≤ 2000, never
 wider than the screen), alignment, rounded corners (0–200 px), optional link (`https://`,
 `http://`, `mailto:`, `tel:`, `/` or `#` only) and "open in a new tab", plus the usual width, CSS
 class, style overrides and show/hide conditions. It collects nothing: no submission value, no
-Excel column, and a value posted under its key is refused like any unknown field.
+Excel column, and a value posted under its key is refused like any unknown field. The picture is
+optional when saving (so adding the block never blocks saving or autosave); a block without a
+picture is simply not shown to visitors.
 
 **Uploading** (`POST {admin}/forms/{form}/media`, `PageMediaController::storeForForm`): needs
 permission to edit that form (`FormPolicy::update`, so not on archived forms). The page builder's

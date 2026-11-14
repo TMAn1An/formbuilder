@@ -3,6 +3,14 @@
 ## Unreleased — 2026-11-14
 
 ### Form Builder
+- **Banner is now its own section outside the form box**, placed above or below the form
+  (`banner_position`), as wide as the form or the full page width (`banner_width`). Existing
+  banners move from inside the card to a section directly above it.
+- **Fixed:** adding an Image block made every save and autosave fail ("The
+  fields.0.settings.media id field is required") until a picture was chosen. The picture is now
+  optional; a block without one isn't shown to visitors.
+- **Fixed:** the builder's error box showed a stray "null"; field flags ("Needs fixing",
+  "Conditional") no longer cover the form title.
 - **Step-by-step forms** (Settings → Layout → "Show one section at a time"): every Section field
   starts a step; visitors use Back / Next with a "Step 2 of 4" progress bar, and submit on the
   last step. Next checks the current step's answers, steps hidden by conditions are skipped, and

@@ -381,15 +381,9 @@
   function renderCanvas() {
     var touched = captureTouched();
     var wrapperId = 'ff-form-' + state.form.id;
-    var style = h('style', { text: '#' + wrapperId + '{' + formStyleDeclarations() + '}\n' + (state.rendered.css || '') });
+    var style = h('style', { text: '#' + wrapperId + ',#' + wrapperId + '-banner{' + formStyleDeclarations() + '}\n' + (state.rendered.css || '') });
 
     var wrapper = h('div', { class: 'ff-form' + (state.device === 'mobile' ? ' ff-form--narrow' : ''), id: wrapperId });
-    var banner = mediaById(state.form.settings.banner_media_id);
-    if (banner) {
-      var bh = Number(state.form.settings.banner_height) || 0;
-      wrapper.append(h('figure', { class: 'ff-banner' }, h('img', { src: banner.url, alt: state.form.settings.banner_alt || '',
-        width: banner.width || null, height: banner.height || null, style: bh ? 'max-height:' + bh + 'px;object-fit:cover' : null })));
-    }
     wrapper.append(h('h1', { class: 'ff-title', text: formTitle() }));
     if (state.form.description) wrapper.append(h('p', { class: 'ff-description', text: state.form.description }));
     if (state.rendered.html_before) wrapper.append(sanitizedHtml('ff-custom-html ff-custom-html--before ff-html', state.rendered.html_before));
@@ -408,7 +402,20 @@
       h('div', { class: 'ff-actions' }, h('button', { type: 'button', class: 'ff-button', text: state.form.settings.submit_label || 'Submit' }))));
     if (state.rendered.html_after) wrapper.append(sanitizedHtml('ff-custom-html ff-custom-html--after ff-html', state.rendered.html_after));
 
-    els.canvas.replaceChildren(style, wrapper);
+    // The banner is its own section outside the card (same markup as forms/_banner.blade.php).
+    var st = state.form.settings;
+    var bannerMedia = mediaById(st.banner_media_id);
+    var banner = null;
+    if (bannerMedia) {
+      var bh = Number(st.banner_height) || 0;
+      var pos = st.banner_position === 'bottom' ? 'bottom' : 'top';
+      banner = h('figure', { class: 'ff-banner-section ff-banner-section--' + pos + ' ff-banner-section--' + (st.banner_width === 'full' ? 'full' : 'form'), id: wrapperId + '-banner' },
+        h('img', { src: bannerMedia.url, alt: st.banner_alt || '', width: bannerMedia.width || null, height: bannerMedia.height || null,
+          style: bh ? 'max-height:' + bh + 'px;object-fit:cover' : null }));
+    }
+    if (banner && st.banner_position === 'bottom') els.canvas.replaceChildren(style, wrapper, banner);
+    else if (banner) els.canvas.replaceChildren(style, banner, wrapper);
+    else els.canvas.replaceChildren(style, wrapper);
     els.canvas.classList.toggle('is-mobile', state.device === 'mobile');
     restoreTouched(touched);
     applyLogic();
@@ -509,7 +516,7 @@
       case 'image_block':
         var pic = mediaById(s.media_id);
         if (!pic) {
-          nodes.push(h('div', { class: 'fb-hidden-chip', text: 'Image — no picture chosen yet. Upload or choose one in the Field panel.' }));
+          nodes.push(h('div', { class: 'fb-hidden-chip', text: 'Image — no picture chosen yet, so visitors won’t see this block. Upload or choose one in the Field panel.' }));
           break;
         }
         var picStyle = [];
@@ -1088,16 +1095,20 @@
     var nodes = [];
     var st = state.form.settings;
     var bannerBox = h('div', { class: 'fb-group' }, h('h4', { text: 'Banner image' }),
-      h('p', { class: 'help', style: 'font-size:.74rem;color:var(--muted);margin:0 0 8px', text: 'Shown across the top of the form, above the title.' }),
+      h('p', { class: 'help', style: 'font-size:.74rem;color:var(--muted);margin:0 0 8px', text: 'A picture shown as its own section above or below the form (outside the form box).' }),
       mediaPicker(st.banner_media_id, function (id) { st.banner_media_id = id; changed({ panel: true }); }, err('settings.banner_media_id')));
     if (st.banner_media_id) {
       bannerBox.append(
+        selectCtl('Banner position', st.banner_position === 'bottom' ? 'bottom' : 'top', [['top', 'Above the form'], ['bottom', 'Below the form']],
+          function (v) { st.banner_position = v; changed(); }, { error: err('settings.banner_position') }),
+        selectCtl('Banner width', st.banner_width === 'full' ? 'full' : 'form', [['form', 'Same width as the form'], ['full', 'Full page width']],
+          function (v) { st.banner_width = v; changed(); }, { error: err('settings.banner_width') }),
         altCtl(st.banner_alt, function (v) { st.banner_alt = v === '' ? null : v; changed(); }, err('settings.banner_alt')),
         textCtl('Maximum height (px, optional)', st.banner_height, function (v) { st.banner_height = v === '' ? null : Number(v); changed(); }, {
           type: 'number', min: META.banner.minHeight, max: META.banner.maxHeight, error: err('settings.banner_height'),
           help: 'Empty = the image keeps its own shape. Otherwise a wide screen crops it to this height; phones show the whole image, smaller (' + META.banner.minHeight + '–' + META.banner.maxHeight + ').' }),
         h('div', { class: 'fb-panel__actions' }, h('button', { type: 'button', class: 'fba-btn fba-btn--ghost fba-btn--sm', text: 'Remove banner', onclick: function () {
-          st.banner_media_id = null; st.banner_alt = null; st.banner_height = null; changed({ panel: true });
+          st.banner_media_id = null; st.banner_alt = null; st.banner_height = null; st.banner_position = 'top'; st.banner_width = 'form'; changed({ panel: true });
         } })));
     }
     nodes.push(bannerBox);
@@ -1405,8 +1416,9 @@
         else { state.tab = item.tab; renderTabs(); renderPanel(); }
       } }));
     }));
-    els.errors.replaceChildren(h('strong', { text: blocking ? 'Not saved.' : 'This form could not be saved:' }), list,
-      blocking ? h('button', { type: 'button', text: 'Reload the builder', onclick: function () { window.location.reload(); } }) : null);
+    var nodes = [h('strong', { text: blocking ? 'Not saved.' : 'This form could not be saved:' }), list];
+    if (blocking) nodes.push(h('button', { type: 'button', text: 'Reload the builder', onclick: function () { window.location.reload(); } }));
+    els.errors.replaceChildren.apply(els.errors, nodes); // (a null argument would be printed as the text "null")
     els.errors.hidden = false;
   }
 

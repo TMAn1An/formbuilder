@@ -46,8 +46,10 @@ class FormPresenter
             'form' => $form,
             'wrapperId' => $form->wrapperId(),
             // Values are validated, enum-mapped CSS (never free text); the
-            // custom CSS is scoped and has `<` escaped -- see CssScoper.
-            'styleSheet' => trim($scope.'{'.FormStyleSchema::cssDeclarations($form->style_settings).'}'."\n".$this->css->scope($form->custom_css, $scope)),
+            // custom CSS is scoped and has `<` escaped -- see CssScoper. The
+            // banner section (outside the card) shares the design variables
+            // so it lines up with the form's width and alignment.
+            'styleSheet' => trim($scope.','.$scope.'-banner{'.FormStyleSchema::cssDeclarations($form->style_settings).'}'."\n".$this->css->scope($form->custom_css, $scope)),
             'htmlBefore' => $this->html->sanitize($form->custom_html_before),
             'htmlAfter' => $this->html->sanitize($form->custom_html_after),
             'banner' => $this->banner($settings, $media),
@@ -62,13 +64,14 @@ class FormPresenter
     }
 
     /**
-     * The banner above the title, or null when none is set (or its image is
-     * gone). The height setting is a maximum: the image keeps its own shape
-     * until it would be taller than that, then it is cropped to fit (so a
-     * phone sees the whole banner, just smaller).
+     * The banner -- its own section above or below the form card -- or null
+     * when none is set (or its image is gone). The height setting is a
+     * maximum: the image keeps its own shape until it would be taller than
+     * that, then it is cropped to fit (so a phone sees the whole banner,
+     * just smaller).
      *
      * @param  Collection<int, PageMedia>  $media
-     * @return array{url: string, alt: string, width: ?int, height: ?int, style: string}|null
+     * @return array{url: string, alt: string, width: ?int, height: ?int, style: string, position: string, span: string}|null
      */
     private function banner(array $settings, $media): ?array
     {
@@ -85,6 +88,9 @@ class FormPresenter
             'height' => $image->height,
             // Validated integer, not free text -- safe to emit as a style value.
             'style' => $height ? 'max-height:'.(int) $height.'px;object-fit:cover' : '',
+            // Enums (normalized above): used in class names.
+            'position' => $settings['banner_position'] === 'bottom' ? 'bottom' : 'top',
+            'span' => $settings['banner_width'] === 'full' ? 'full' : 'form',
         ];
     }
 

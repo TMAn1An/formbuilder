@@ -88,7 +88,9 @@ final class FieldSettingsSchema
             }],
             'heading_level' => [$path => ['nullable', Rule::in(['h2', 'h3', 'h4'])]],
             // Image block: a picture from the shared media library (page_media).
-            'media_id' => [$path => ['required', 'integer', Rule::exists('page_media', 'id')]],
+            // Optional so a just-added block (no picture yet) never blocks saving or
+            // autosave; a block without a picture simply isn't shown to visitors.
+            'media_id' => [$path => ['nullable', 'integer', Rule::exists('page_media', 'id')]],
             'alt' => [$path => ['nullable', 'string', 'max:300']],
             'max_width' => [$path => ['nullable', 'integer', 'min:16', 'max:'.self::IMAGE_MAX_WIDTH]],
             'align' => [$path => ['nullable', Rule::in(['left', 'center', 'right'])]],

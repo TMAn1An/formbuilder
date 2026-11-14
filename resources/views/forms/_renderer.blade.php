@@ -31,15 +31,11 @@
   $titleTag = in_array($titleTag ?? 'h1', ['h1', 'h2'], true) ? ($titleTag ?? 'h1') : 'h1';
 @endphp
 <style>{!! $presented['styleSheet'] !!}</style>
+@php $banner = $presented['banner']; @endphp
+@if ($banner && $banner['position'] === 'top')
+  @include('formbuilder::forms._banner')
+@endif
 <div class="ff-form" id="{{ $presented['wrapperId'] }}">
-  @if ($presented['banner'])
-    @php $banner = $presented['banner']; @endphp
-    <figure class="ff-banner">
-      <img src="{{ $banner['url'] }}" alt="{{ $banner['alt'] }}"
-        @if ($banner['width']) width="{{ $banner['width'] }}" @endif @if ($banner['height']) height="{{ $banner['height'] }}" @endif
-        @if ($banner['style'] !== '') style="{{ $banner['style'] }}" @endif>
-    </figure>
-  @endif
   @if (empty($hideTitle))
     <{{ $titleTag }} class="ff-title">{{ $form->title() }}</{{ $titleTag }}>
   @endif
@@ -229,3 +225,6 @@
     <script type="application/json" data-ff-logic>@json($presented['logic'])</script>
   @endif
 </div>
+@if ($banner && $banner['position'] === 'bottom')
+  @include('formbuilder::forms._banner')
+@endif

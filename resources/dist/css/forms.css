@@ -57,9 +57,6 @@
 .ff-form *, .ff-form *::before, .ff-form *::after { box-sizing: border-box; }
 .ff-form [hidden] { display: none !important; }
 
-/* Banner image above the title (Design tab). An optional max-height crops via object-fit (inline style). */
-.ff-form .ff-banner { margin: 0 0 var(--ff-gap); }
-.ff-form .ff-banner img { display: block; width: 100%; height: auto; border-radius: var(--ff-input-radius); }
 .ff-form .ff-title { margin: 0 0 6px; color: var(--ff-label-color); font-size: 1.6em; line-height: 1.2; }
 .ff-form .ff-description { margin: 0 0 var(--ff-gap); color: var(--ff-text); opacity: .85; white-space: pre-line; }
 .ff-form .ff-custom-html { margin: 0 0 var(--ff-gap); }
@@ -202,6 +199,17 @@
 .ff-button:focus-visible { outline: 3px solid color-mix(in srgb, var(--ff-btn-bg, #00629b) 35%, transparent); outline-offset: 2px; }
 .ff-button:disabled { opacity: .6; cursor: not-allowed; }
 .ff-button[hidden] { display: none; }
+
+/* ------------------------------------------- banner section (Design tab)
+   Its own section outside the form card, above or below it. "form" width
+   lines up with the card (same --ff-max-width / --ff-margin, emitted for
+   #ff-form-{id}-banner too); "full" spans the page container. An optional
+   max-height crops via object-fit (inline style). */
+.ff-banner-section { box-sizing: border-box; max-width: var(--ff-max-width, 720px); margin: var(--ff-margin, 0 auto); padding: 0; }
+.ff-banner-section--top { margin-bottom: var(--ff-gap, 20px); }
+.ff-banner-section--bottom { margin-top: var(--ff-gap, 20px); }
+.ff-banner-section--full { max-width: none; }
+.ff-banner-section img { display: block; width: 100%; height: auto; border-radius: var(--ff-radius, 12px); }
 
 /* -------------------------------------------- step-by-step forms (form-runtime.js) */
 .ff-form .ff-step-hidden { display: none !important; }
