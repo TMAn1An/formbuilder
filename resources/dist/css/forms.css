@@ -200,7 +200,7 @@
 .ff-button:disabled { opacity: .6; cursor: not-allowed; }
 .ff-button[hidden] { display: none; }
 
-/* ------------------------------------------- banner section (Design tab)
+/* ------------------------------------------- banner section (Settings tab)
    Its own section outside the form card, above or below it. "form" width
    lines up with the card (same --ff-max-width / --ff-margin, emitted for
    #ff-form-{id}-banner too); "full" spans the page container. An optional

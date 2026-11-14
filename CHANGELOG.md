@@ -3,6 +3,16 @@
 ## Unreleased — 2026-11-14
 
 ### Form Builder
+- **Builder usability** (reported on the live site):
+  - A field's **key now follows its label** while it is still the generated key, also after the
+    first (auto)save. It stops following once you type a key yourself, and is locked once the
+    field has submissions. Before, the key froze at the first autosave, a few seconds after adding
+    the field.
+  - **Banner image** moved from the Design tab to the **Settings** tab.
+  - Each **Section** field's panel shows whether step-by-step is on and has the same switch, so
+    "no Next button" is explained where sections are edited.
+  - **Preview** of a draft with unsaved changes saves first, so it matches the builder; on a live
+    form it warns instead of publishing the changes.
 - **Banner is now its own section outside the form box**, placed above or below the form
   (`banner_position`), as wide as the form or the full page width (`banner_width`). Existing
   banners move from inside the card to a section directly above it.

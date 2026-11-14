@@ -40,6 +40,7 @@
     statusBadge: document.getElementById('fb-status-badge'),
     save: document.getElementById('fb-save'),
     publish: document.getElementById('fb-publish'),
+    preview: document.getElementById('fb-preview'),
     showHidden: document.getElementById('fb-show-hidden'),
   };
 
@@ -96,7 +97,9 @@
       style_settings: plain(f.style_settings),
       conditional_rules: f.conditional_rules ? JSON.parse(JSON.stringify(f.conditional_rules)) : null,
       has_submissions: !!f.has_submissions,
-      keyEdited: true,
+      // A key still in its generated form keeps following the label (see the
+      // Label control); one the admin typed themselves never changes.
+      keyEdited: !isGeneratedKey(f.key, f.label),
     };
   }
 
@@ -109,6 +112,12 @@
     state.media = s.media || [];
     state.rendered = { css: s.rendered.css || '', html_before: s.rendered.html_before || '', html_after: s.rendered.html_after || '', fields: {} };
     Object.keys(s.rendered.fields || {}).forEach(function (id) { state.rendered.fields['f' + id] = s.rendered.fields[id]; });
+  }
+
+  /** True when `key` is what the builder would generate from `label` (optionally with a _2, _3… suffix). */
+  function isGeneratedKey(key, label) {
+    var base = toKey(label);
+    return key === base || key.replace(/_\d+$/, '') === base;
   }
 
   function byUid(uid) { return state.fields.find(function (f) { return f.uid === uid; }) || null; }
@@ -736,7 +745,9 @@
     var basics = h('div', { class: 'fb-group' }, h('h4', { text: meta.label }));
     basics.append(textCtl(f.type === 'section' ? 'Section title' : (isContent ? 'Admin label' : 'Label'), f.label, function (v) {
       f.label = v;
-      if (!f.keyEdited && f.id === null) {
+      // Saved fields follow too (the builder autosaves within seconds), as long
+      // as nothing has been submitted under the key yet.
+      if (!f.keyEdited && !f.has_submissions) {
         renameKey(f, uniqueKey(toKey(v), f));
         f.keyEdited = false;
         if (keyCtl) keyCtl.querySelector('input').value = f.key;
@@ -751,7 +762,7 @@
       maxlength: 64, disabled: f.has_submissions,
       help: f.has_submissions
         ? 'Locked: submissions are stored under this key.'
-        : 'Stable machine name used in submissions and exports (a-z, 0-9, _). Generated from the label until you edit it.',
+        : 'Stable machine name used in submissions and exports (a-z, 0-9, _). Follows the label until you edit it here; locked once the form has submissions for this field.',
     });
     basics.append(keyCtl);
 
@@ -760,6 +771,20 @@
         { help: f.conditional_rules ? 'Only enforced while the field is visible.' : null }));
     }
     nodes.push(basics);
+
+    // --- Section: the form-wide "one section at a time" switch, right where
+    // sections are edited (the same setting as Settings → Layout).
+    if (f.type === 'section') {
+      var stepOn = !!state.form.settings.multi_step;
+      var stepNo = stepStarts()[f.uid];
+      nodes.push(h('div', { class: 'fb-group' }, h('h4', { text: 'Step by step' }),
+        h('p', { class: 'fb-callout' + (stepOn ? '' : ' fb-callout--warn'), text: stepOn
+          ? (stepNo ? 'On: visitors see this section as step ' + stepNo + ', with Back / Next buttons.' : 'On: visitors see one section at a time.')
+          : 'Off: visitors see the whole form on one page, with no Next button. Turn it on below to show one section at a time.' }),
+        checkCtl('Show this form one section at a time', stepOn, function (v) { state.form.settings.multi_step = v; changed({ panel: true }); }, {
+          help: 'Applies to the whole form (also under Settings → Layout). Each Section starts a new step; put that step’s fields below it.',
+        })));
+    }
 
     // --- type-specific settings
     var settings = h('div', { class: 'fb-group' }, h('h4', { text: 'Settings' }));
@@ -1093,25 +1118,6 @@
 
   function renderDesignPanel() {
     var nodes = [];
-    var st = state.form.settings;
-    var bannerBox = h('div', { class: 'fb-group' }, h('h4', { text: 'Banner image' }),
-      h('p', { class: 'help', style: 'font-size:.74rem;color:var(--muted);margin:0 0 8px', text: 'A picture shown as its own section above or below the form (outside the form box).' }),
-      mediaPicker(st.banner_media_id, function (id) { st.banner_media_id = id; changed({ panel: true }); }, err('settings.banner_media_id')));
-    if (st.banner_media_id) {
-      bannerBox.append(
-        selectCtl('Banner position', st.banner_position === 'bottom' ? 'bottom' : 'top', [['top', 'Above the form'], ['bottom', 'Below the form']],
-          function (v) { st.banner_position = v; changed(); }, { error: err('settings.banner_position') }),
-        selectCtl('Banner width', st.banner_width === 'full' ? 'full' : 'form', [['form', 'Same width as the form'], ['full', 'Full page width']],
-          function (v) { st.banner_width = v; changed(); }, { error: err('settings.banner_width') }),
-        altCtl(st.banner_alt, function (v) { st.banner_alt = v === '' ? null : v; changed(); }, err('settings.banner_alt')),
-        textCtl('Maximum height (px, optional)', st.banner_height, function (v) { st.banner_height = v === '' ? null : Number(v); changed(); }, {
-          type: 'number', min: META.banner.minHeight, max: META.banner.maxHeight, error: err('settings.banner_height'),
-          help: 'Empty = the image keeps its own shape. Otherwise a wide screen crops it to this height; phones show the whole image, smaller (' + META.banner.minHeight + '–' + META.banner.maxHeight + ').' }),
-        h('div', { class: 'fb-panel__actions' }, h('button', { type: 'button', class: 'fba-btn fba-btn--ghost fba-btn--sm', text: 'Remove banner', onclick: function () {
-          st.banner_media_id = null; st.banner_alt = null; st.banner_height = null; st.banner_position = 'top'; st.banner_width = 'form'; changed({ panel: true });
-        } })));
-    }
-    nodes.push(bannerBox);
     Object.keys(META.formStyle).forEach(function (group) {
       var g = META.formStyle[group];
       var box = h('div', { class: 'fb-group' }, h('h4', { text: g.label }));
@@ -1167,6 +1173,25 @@
         help: 'Each Section field starts a new step. Visitors fill in one step, press Next for the next one, and submit on the last step. '
           + (st.multi_step && !sections ? 'Add Section fields (Layout & content) to split this form into steps; until then it shows as one page.' : 'Without JavaScript the whole form shows at once.'),
       })));
+
+    var bannerBox = h('div', { class: 'fb-group' }, h('h4', { text: 'Banner image' }),
+      h('p', { class: 'help', style: 'font-size:.74rem;color:var(--muted);margin:0 0 8px', text: 'A picture shown as its own section above or below the form (outside the form box).' }),
+      mediaPicker(st.banner_media_id, function (id) { st.banner_media_id = id; changed({ panel: true }); }, err('settings.banner_media_id')));
+    if (st.banner_media_id) {
+      bannerBox.append(
+        selectCtl('Banner position', st.banner_position === 'bottom' ? 'bottom' : 'top', [['top', 'Above the form'], ['bottom', 'Below the form']],
+          function (v) { st.banner_position = v; changed(); }, { error: err('settings.banner_position') }),
+        selectCtl('Banner width', st.banner_width === 'full' ? 'full' : 'form', [['form', 'Same width as the form'], ['full', 'Full page width']],
+          function (v) { st.banner_width = v; changed(); }, { error: err('settings.banner_width') }),
+        altCtl(st.banner_alt, function (v) { st.banner_alt = v === '' ? null : v; changed(); }, err('settings.banner_alt')),
+        textCtl('Maximum height (px, optional)', st.banner_height, function (v) { st.banner_height = v === '' ? null : Number(v); changed(); }, {
+          type: 'number', min: META.banner.minHeight, max: META.banner.maxHeight, error: err('settings.banner_height'),
+          help: 'Empty = the image keeps its own shape. Otherwise a wide screen crops it to this height; phones show the whole image, smaller (' + META.banner.minHeight + '–' + META.banner.maxHeight + ').' }),
+        h('div', { class: 'fb-panel__actions' }, h('button', { type: 'button', class: 'fba-btn fba-btn--ghost fba-btn--sm', text: 'Remove banner', onclick: function () {
+          st.banner_media_id = null; st.banner_alt = null; st.banner_height = null; st.banner_position = 'top'; st.banner_width = 'form'; changed({ panel: true });
+        } })));
+    }
+    nodes.push(bannerBox);
 
     nodes.push(h('div', { class: 'fb-group' }, h('h4', { text: 'After submitting' }),
       textareaCtl('Success message', st.success_message, setS('success_message'), { rows: 3, maxlength: 2000, error: err('settings.success_message') }),
@@ -1245,7 +1270,7 @@
 
   function tabForPath(path) {
     if (/^fields\./.test(path) || path === 'fields') return 'field';
-    if (/^style_settings\./.test(path) || /^settings\.banner_/.test(path)) return 'design';
+    if (/^style_settings\./.test(path)) return 'design';
     if (/^custom_/.test(path)) return 'code';
     return 'settings';
   }
@@ -1307,17 +1332,20 @@
     state.autosaveTimer = setTimeout(function () { if (isDirty()) save('save', true); }, 5000);
   }
 
+  /** Resolves true once saved (false if the save was refused or failed). */
   function save(intent, autosave) {
-    if (!canEdit) return;
-    if (state.saving) { if (!autosave) state.pendingIntent = intent; return; }
+    if (!canEdit) return Promise.resolve(false);
+    if (state.saving) { if (!autosave) state.pendingIntent = intent; return Promise.resolve(false); }
+    var saved = false;
     clearTimeout(state.autosaveTimer);
     state.saving = true;
     var seq = state.changeSeq;
     els.save.disabled = els.publish.disabled = true;
     setSaveState(autosave ? 'Autosaving…' : 'Saving…');
 
-    api('PUT', URLS.save, buildPayload(intent, autosave)).then(function (res) {
+    return api('PUT', URLS.save, buildPayload(intent, autosave)).then(function (res) {
       if (res.ok) {
+        saved = true;
         applySavedState(res.data.state, seq);
         clearErrors();
         state.savedSeq = seq;
@@ -1345,6 +1373,30 @@
       state.saving = false;
       els.save.disabled = els.publish.disabled = false;
       if (state.pendingIntent) { var next = state.pendingIntent; state.pendingIntent = null; save(next, false); }
+      return saved;
+    });
+  }
+
+  /*
+   * Preview shows the SAVED form. A draft with unsaved changes is saved
+   * first, so the preview matches the builder; a live form is never saved
+   * implicitly (that would publish the changes), so the admin is warned.
+   */
+  if (els.preview) {
+    els.preview.addEventListener('click', function (e) {
+      if (!canEdit || !isDirty()) return;
+      e.preventDefault();
+      var href = els.preview.href;
+      if (state.form.status === 'active') {
+        if (window.confirm('This form is live and has unsaved changes. Preview shows the saved (live) version, not your latest changes. Open it anyway?')) window.open(href, '_blank', 'noopener');
+        return;
+      }
+      var win = window.open('about:blank', '_blank'); // opened now, while the click still allows pop-ups
+      save('save', false).then(function (ok) {
+        if (!win) return;
+        if (ok) win.location.href = href;
+        else win.close();
+      });
     });
   }
 

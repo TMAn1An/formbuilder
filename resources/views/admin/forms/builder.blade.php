@@ -19,7 +19,7 @@
         <span class="fb-save-state" id="fb-save-state" role="status" aria-live="polite"></span>
       </div>
       <div class="fb-toolbar__right">
-        <a href="{{ $fb->admin('forms.preview', $form) }}" class="fba-btn fba-btn--ghost fba-btn--sm" target="_blank" rel="noopener">Preview</a>
+        <a href="{{ $fb->admin('forms.preview', $form) }}" class="fba-btn fba-btn--ghost fba-btn--sm" target="_blank" rel="noopener" id="fb-preview">Preview</a>
         @if ($form->status === FormStatus::Active && $form->setting('visibility', 'public') === 'public')
           <a href="{{ $publicUrl }}" class="fba-btn fba-btn--ghost fba-btn--sm" target="_blank" rel="noopener">View live</a>
         @endif
