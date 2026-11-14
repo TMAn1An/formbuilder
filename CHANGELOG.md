@@ -3,6 +3,10 @@
 ## Unreleased — 2026-11-14
 
 ### Form Builder
+- **Removing and deleting pictures:** *Remove banner* / *Remove picture from this block* now sits
+  right under the picture (it only takes the picture off the form). New **Manage uploaded
+  images** list deletes images from the library for good (`DELETE {admin}/media/{uuid}`), but
+  never one still used by any form or page; the server says where it's used instead.
 - **Easier builder for first-time form makers:**
   - With no field selected, the right panel shows a 4-step guide (add fields → edit a field →
     Settings for pages/banner/thank-you → Save draft, Preview, Publish), with a tip on splitting a

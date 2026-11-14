@@ -42,6 +42,9 @@ Route::prefix('forms')->name('forms.')->group(function () {
     Route::get('/{form}/submissions/{submission}/files/{file}', [FormSubmissionController::class, 'file'])->name('submissions.file')->scopeBindings();
 });
 
+// Shared image library (forms + pages): delete an image no form or page uses.
+Route::delete('/media/{media}', [PageMediaController::class, 'destroy'])->name('media.destroy');
+
 Route::prefix('pages')->name('pages.')->group(function () {
     Route::get('/', [PageController::class, 'index'])->name('index');
     Route::get('/create', [PageController::class, 'create'])->name('create');

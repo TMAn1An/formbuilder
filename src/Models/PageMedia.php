@@ -10,7 +10,9 @@ use Illuminate\Support\Facades\Storage;
  * page builder or the form builder. Stored on
  * config('formbuilder.storage.media_disk'); referenced by id from page Image
  * blocks, form Image blocks and form banners, exposed publicly only by its
- * random `uuid`. Never deleted by removing a block or banner.
+ * random `uuid`. Never deleted by removing a block or banner; an admin can
+ * delete it from the library only while nothing uses it
+ * (Services\Media\MediaLibrary).
  */
 class PageMedia extends Model
 {
@@ -55,6 +57,6 @@ class PageMedia extends Model
     /** The shape both builders' media pickers use. @return array<string, mixed> */
     public function toBuilderArray(): array
     {
-        return ['id' => $this->id, 'url' => $this->url(), 'name' => $this->original_name, 'width' => $this->width, 'height' => $this->height];
+        return ['id' => $this->id, 'uuid' => $this->uuid, 'url' => $this->url(), 'name' => $this->original_name, 'width' => $this->width, 'height' => $this->height];
     }
 }

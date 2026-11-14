@@ -14,6 +14,7 @@ use TMAn1An\FormBuilder\Models\Page;
 use TMAn1An\FormBuilder\Models\PageMedia;
 use TMAn1An\FormBuilder\Services\Forms\FieldSettingsSchema;
 use TMAn1An\FormBuilder\Services\Forms\FormSubmissionService;
+use TMAn1An\FormBuilder\Services\Media\MediaLibrary;
 
 /**
  * Uploads to the shared media library (public content), used by page Image
@@ -22,9 +23,11 @@ use TMAn1An\FormBuilder\Services\Forms\FormSubmissionService;
  * image decode; stored under a random name with an extension derived from
  * the detected type, on config('formbuilder.storage.media_disk').
  *
- * Two entry points, one per builder, each authorized against what that
- * admin is editing: store() needs permission to create pages, storeForForm()
- * needs permission to edit that form.
+ * Two upload entry points, one per builder, each authorized against what
+ * that admin is editing: store() needs permission to create pages,
+ * storeForForm() needs permission to edit that form. destroy() deletes an
+ * image from the library -- only one that no form or page uses (see
+ * MediaLibrary::usages()); otherwise it answers 409 saying where it's used.
  */
 class PageMediaController extends Controller
 {
@@ -40,6 +43,24 @@ class PageMediaController extends Controller
         $this->authorize('update', $form);
 
         return $this->upload($request);
+    }
+
+    public function destroy(PageMedia $media, MediaLibrary $library): JsonResponse
+    {
+        // Same people who may upload to the library (FormPolicy/PagePolicy::create).
+        $this->authorize('create', Form::class);
+
+        $usages = $library->usages($media);
+        if ($usages !== []) {
+            return response()->json([
+                'message' => 'This image is still used, so it can\'t be deleted: '.implode('; ', $usages).'. Remove it there first.',
+                'usages' => $usages,
+            ], 409);
+        }
+
+        $library->delete($media);
+
+        return response()->json(['deleted' => $media->id]);
     }
 
     private function upload(Request $request): JsonResponse
