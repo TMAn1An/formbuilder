@@ -37,7 +37,7 @@ class FormController extends Controller
 
         return view('formbuilder::admin.forms.index', [
             'forms' => Form::query()
-                ->withCount('submissions')
+                ->withCount(['submissions', 'pageBlocks'])
                 ->when(! $showArchived, fn ($q) => $q->notArchived())
                 ->latest('updated_at')
                 ->paginate(20)
@@ -164,6 +164,15 @@ class FormController extends Controller
         $this->builder->archive($form, $request->user());
 
         return redirect()->to($this->fb()->admin('forms.index'))->with('status', "\"{$form->name}\" was archived. Its submissions are still available.");
+    }
+
+    public function destroy(Request $request, Form $form): RedirectResponse
+    {
+        $this->authorize('delete', $form);
+        $name = $form->name;
+        $this->builder->delete($form, $request->user());
+
+        return redirect()->to($this->fb()->admin('forms.index'))->with('status', "\"{$name}\" and its submissions were deleted.");
     }
 
     public function restore(Request $request, Form $form): RedirectResponse

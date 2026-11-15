@@ -3,6 +3,16 @@
 ## Unreleased — 2026-11-14
 
 ### Form Builder
+- **Form ownership and sharing:** a form is now managed (edited, published, its submissions
+  edited or deleted, the form deleted) only by its **creator**, its **co-owners** and **Super
+  Admins** (`canArchive`); other admins can view it read-only. Each form has an **Owners** page
+  where those who manage it add co-owners from existing admins or remove them. New table
+  `form_owners` (additive migration) and audit events `form_owner_added` / `form_owner_removed`.
+  This replaces "any admin can edit any form" and "only Super Admins delete submissions".
+- **Delete a form** (forms list and builder toolbar): the form's creator or a Super Admin
+  (`canArchive`). Removes the form, its fields and every submission with their images for good;
+  pages embedding it are unlinked. Forms with submissions need "DELETE" typed to confirm. New audit
+  event `form_deleted`.
 - **Unique fields:** a new field setting *Unique: one submission per value* (Text, Email, Number,
   Phone). A value already used by an earlier submission of the form, ignoring spaces and letter
   case, is refused with a message on the field, e.g. so one student ID can submit only once.

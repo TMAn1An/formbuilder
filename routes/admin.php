@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use TMAn1An\FormBuilder\Http\Controllers\Admin\FormController;
+use TMAn1An\FormBuilder\Http\Controllers\Admin\FormOwnerController;
 use TMAn1An\FormBuilder\Http\Controllers\Admin\FormSubmissionController;
 use TMAn1An\FormBuilder\Http\Controllers\Admin\PageController;
 use TMAn1An\FormBuilder\Http\Controllers\Admin\PageMediaController;
@@ -12,9 +13,10 @@ use TMAn1An\FormBuilder\Http\Controllers\Admin\PageMediaController;
 |--------------------------------------------------------------------------
 | Registered by FormBuilderServiceProvider with config('formbuilder.admin')
 | prefix / name / middleware. Authorization: FormPolicy / PagePolicy, which
-| delegate role decisions to the host's Authorizer. There is deliberately no
-| DELETE route for forms or pages (they are archived). Submissions can be
-| edited and deleted by admins (deleting needs FormPolicy::deleteSubmissions).
+| delegate role decisions to the host's Authorizer. Pages are archived, never
+| deleted. A form is managed (edited, published, its submissions edited or
+| deleted, the form deleted, co-owners added) by its creator, its co-owners
+| and Super Admins (FormPolicy::manages); other admins can only view it.
 */
 
 Route::prefix('forms')->name('forms.')->group(function () {
@@ -34,6 +36,10 @@ Route::prefix('forms')->name('forms.')->group(function () {
     Route::post('/{form}/archive', [FormController::class, 'archive'])->name('archive');
     Route::post('/{form}/restore', [FormController::class, 'restore'])->name('restore');
     Route::post('/{form}/duplicate', [FormController::class, 'duplicate'])->name('duplicate');
+    Route::delete('/{form}', [FormController::class, 'destroy'])->name('destroy');
+    Route::get('/{form}/owners', [FormOwnerController::class, 'index'])->name('owners.index');
+    Route::post('/{form}/owners', [FormOwnerController::class, 'store'])->name('owners.store');
+    Route::delete('/{form}/owners/{user}', [FormOwnerController::class, 'destroy'])->name('owners.destroy')->whereNumber('user');
 
     Route::get('/{form}/submissions', [FormSubmissionController::class, 'index'])->name('submissions.index');
     Route::get('/{form}/submissions/export.xlsx', [FormSubmissionController::class, 'export'])->name('submissions.export');

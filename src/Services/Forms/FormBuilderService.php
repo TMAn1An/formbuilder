@@ -3,16 +3,23 @@
 namespace TMAn1An\FormBuilder\Services\Forms;
 
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use TMAn1An\FormBuilder\Contracts\AuditLogger;
+use TMAn1An\FormBuilder\Contracts\Authorizer;
 use TMAn1An\FormBuilder\Enums\AuditEvent;
 use TMAn1An\FormBuilder\Enums\FormFieldType;
 use TMAn1An\FormBuilder\Enums\FormStatus;
 use TMAn1An\FormBuilder\Models\Form;
 use TMAn1An\FormBuilder\Models\FormField;
+use TMAn1An\FormBuilder\Models\FormSubmission;
+use TMAn1An\FormBuilder\Models\FormSubmissionFile;
+use TMAn1An\FormBuilder\Models\FormSubmissionValue;
 use TMAn1An\FormBuilder\Styling\FormStyleSchema;
 use TMAn1An\FormBuilder\Support\HtmlSanitizer;
 
@@ -30,6 +37,7 @@ class FormBuilderService
         private readonly FormDefinitionValidator $definitions,
         private readonly HtmlSanitizer $html,
         private readonly AuditLogger $audit,
+        private readonly Authorizer $authorizer,
     ) {}
 
     public function create(string $name, ?string $description, Authenticatable $actor): Form
@@ -158,6 +166,104 @@ class FormBuilderService
     public function archive(Form $form, Authenticatable $actor): Form
     {
         return $this->transition($form, $actor, FormStatus::Archived, AuditEvent::FormArchived, 'Archived');
+    }
+
+    /**
+     * Deletes a form for good: its fields, every submission (values, file
+     * records and the stored image files) and the form itself. Page Form
+     * blocks that embedded it are left without a form (public pages skip
+     * them; the page builder asks for another form). Reported to the audit
+     * log before the rows go, with what was removed.
+     */
+    public function delete(Form $form, Authenticatable $actor): void
+    {
+        $files = [];
+
+        DB::transaction(function () use ($form, $actor, &$files) {
+            $locked = Form::query()->lockForUpdate()->findOrFail($form->id);
+            $submissionIds = $locked->submissions()->pluck('id');
+            $files = FormSubmissionFile::query()->whereIn('form_submission_id', $submissionIds)->get(['disk', 'path'])->all();
+            $pages = $locked->pageBlocks()->distinct()->count('page_id');
+
+            $this->audit->record(AuditEvent::FormDeleted, $locked, $actor, "Deleted form \"{$locked->name}\" and its {$submissionIds->count()} submission(s).", [
+                'slug' => $locked->slug,
+                'submissions' => $submissionIds->count(),
+                'pages_embedding' => $pages,
+            ]);
+
+            // Children first and explicitly: the foreign keys restrict deleting
+            // a form that still has fields/submissions, and cascades aren't
+            // enforced on every connection.
+            FormSubmissionValue::query()->whereIn('form_submission_id', $submissionIds)->delete();
+            FormSubmissionFile::query()->whereIn('form_submission_id', $submissionIds)->delete();
+            FormSubmission::query()->whereIn('id', $submissionIds)->delete();
+            $locked->pageBlocks()->update(['form_id' => null]);
+            $locked->owners()->detach();
+            $locked->fields()->delete();
+            $locked->delete();
+        });
+
+        foreach ($files as $file) {
+            Storage::disk($file->disk)->delete($file->path);
+        }
+    }
+
+    /**
+     * Admins who can be made co-owners: everyone with builder access who
+     * doesn't already have full control (not the creator, not a co-owner,
+     * not someone the host lets archive -- they manage every form anyway).
+     *
+     * @return Collection<int, Model>
+     */
+    public function possibleOwners(Form $form): Collection
+    {
+        $taken = $form->owners()->pluck($form->owners()->getRelated()->getQualifiedKeyName())
+            ->push($form->created_by)->map(fn ($id) => (string) $id)->all();
+        $model = config('formbuilder.user_model');
+
+        return $model::query()->get()
+            ->reject(fn ($user) => in_array((string) $user->getKey(), $taken, true))
+            ->filter(fn ($user) => $this->authorizer->canAccess($user) && ! $this->authorizer->canArchive($user))
+            ->sortBy(fn ($user) => mb_strtolower($this->userLabel($user)))
+            ->values();
+    }
+
+    /** Gives another admin full control of the form (idempotent). */
+    public function addOwner(Form $form, Authenticatable $user, Authenticatable $actor): bool
+    {
+        if ((string) $form->created_by === (string) $user->getAuthIdentifier() || $form->owners()->whereKey($user->getAuthIdentifier())->exists()) {
+            return false;
+        }
+        $form->owners()->attach($user->getAuthIdentifier(), ['added_by' => $actor->getAuthIdentifier()]);
+        $this->audit->record(AuditEvent::FormOwnerAdded, $form, $actor, "Made {$this->userLabel($user)} a co-owner of form \"{$form->name}\".", [
+            'user_id' => $user->getAuthIdentifier(),
+        ]);
+
+        return true;
+    }
+
+    /** Takes a co-owner's control away (the creator can't be removed). */
+    public function removeOwner(Form $form, Authenticatable $user, Authenticatable $actor): bool
+    {
+        if ($form->owners()->detach($user->getAuthIdentifier()) === 0) {
+            return false;
+        }
+        $this->audit->record(AuditEvent::FormOwnerRemoved, $form, $actor, "Removed {$this->userLabel($user)} as a co-owner of form \"{$form->name}\".", [
+            'user_id' => $user->getAuthIdentifier(),
+        ]);
+
+        return true;
+    }
+
+    public function userLabel(?Authenticatable $user): string
+    {
+        if ($user === null) {
+            return 'Unknown user';
+        }
+        $name = trim((string) ($user->name ?? ''));
+        $email = trim((string) ($user->email ?? ''));
+
+        return $name !== '' ? ($email !== '' ? "{$name} ({$email})" : $name) : ($email !== '' ? $email : 'User #'.$user->getAuthIdentifier());
     }
 
     /** Archived -> Deactivated (never straight back to live). */

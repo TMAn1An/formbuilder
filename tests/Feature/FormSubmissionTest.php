@@ -214,7 +214,8 @@ class FormSubmissionTest extends TestCase
         $this->post("/forms/{$draft->slug}", ['name' => 'x'])->assertNotFound();
 
         $form = $this->registrationForm();
-        $this->actingAs($manager)->post("/admin/forms/{$form->id}/deactivate");
+        // Someone who manages the form (here a Super Admin; it was built by another user).
+        $this->actingAs(User::factory()->admin()->create())->post("/admin/forms/{$form->id}/deactivate")->assertRedirect();
         auth()->logout();
 
         $this->get("/forms/{$form->slug}")->assertNotFound();
