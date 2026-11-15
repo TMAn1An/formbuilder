@@ -3,6 +3,8 @@
 ## Unreleased — 2026-11-14
 
 ### Form Builder
+- **Step-by-step forms show the description and banner on the first step only**; later steps
+  keep the title and go straight to their questions.
 - **Removing and deleting pictures:** *Remove banner* / *Remove picture from this block* now sits
   right under the picture (it only takes the picture off the form). New **Manage uploaded
   images** list deletes images from the library for good (`DELETE {admin}/media/{uuid}`), but

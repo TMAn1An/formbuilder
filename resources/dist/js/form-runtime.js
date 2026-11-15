@@ -14,7 +14,9 @@
    the current step's answers with the browser's own validation; on submit
    every step is checked and the visitor is taken to the first problem.
    Steps are only hidden with a CSS class (never disabled), so every answer
-   is still submitted together and validated by the server as usual.
+   is still submitted together and validated by the server as usual. The
+   form's description and banner belong to the first step only; the title
+   stays on every step.
    ========================================================================= */
 (function () {
   'use strict';
@@ -58,6 +60,10 @@
     if (groups.length < 2) return null;
 
     var preview = formEl.hasAttribute('data-ff-preview');
+    // Shown on the first step only: the description, and the banner (its own
+    // section next to the card, id "<form id>-banner", above or below it).
+    var intro = [root.querySelector(':scope > .ff-description'), root.id ? document.getElementById(root.id + '-banner') : null]
+      .filter(function (el) { return el; });
     var progress = document.createElement('div');
     progress.className = 'ff-steps';
     var label = document.createElement('p');
@@ -126,6 +132,7 @@
       back.hidden = pos === 0;
       next.hidden = last;
       submit.hidden = !last;
+      intro.forEach(function (el) { el.hidden = pos !== 0; });
     }
 
     function goTo(group) {

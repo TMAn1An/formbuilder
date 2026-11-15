@@ -486,6 +486,9 @@ is.
 - **Steps come from Section fields.** Each Section starts a new step; fields before the first
   Section are step 1. With no Sections the form shows as one page. The builder marks where each
   step starts.
+- **Only the first step shows the form's description and banner** (whether the banner is
+  above or below the form); later steps keep just the title, so each page starts with its own
+  questions. Back to step 1 shows them again.
 - **Visitors** see "Step 2 of 4 · <section title>" with a progress bar, **Back** and **Next**,
   and the submit button only on the last step. Next checks the current step's answers with the
   browser's own validation (required, email, number ranges, patterns…). Pressing Enter on an
