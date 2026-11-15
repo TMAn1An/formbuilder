@@ -213,6 +213,8 @@
 
 /* -------------------------------------------- step-by-step forms (form-runtime.js) */
 .ff-form .ff-step-hidden { display: none !important; }
+/* After step 1 the description and banner are hidden (form-runtime.js sets `hidden`). */
+.ff-form .ff-description[hidden], .ff-banner-section[hidden] { display: none; }
 .ff-form .ff-steps { margin: 0 0 var(--ff-gap); }
 .ff-form .ff-steps__label { margin: 0 0 6px; color: var(--ff-label-color); font-weight: 600; font-size: .95em; }
 .ff-form .ff-steps__label:focus { outline: none; }
