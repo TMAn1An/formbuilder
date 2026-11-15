@@ -19,6 +19,7 @@ use TMAn1An\FormBuilder\Enums\FormFieldType;
 use TMAn1An\FormBuilder\Models\Form;
 use TMAn1An\FormBuilder\Models\FormField;
 use TMAn1An\FormBuilder\Models\FormSubmission;
+use TMAn1An\FormBuilder\Models\FormSubmissionValue;
 
 /**
  * Validates and stores one public submission. Validation rules are built
@@ -32,6 +33,10 @@ use TMAn1An\FormBuilder\Models\FormSubmission;
  * the detected type. Only metadata goes into the database. If anything
  * fails after a file was written, the transaction rolls back and every file
  * written for this submission is deleted.
+ *
+ * Fields marked "unique" (e.g. a student ID) are checked against every
+ * earlier submission of the form under the same row lock as the
+ * submission limit, so two simultaneous submissions can't both get in.
  */
 class FormSubmissionService
 {
@@ -73,6 +78,7 @@ class FormSubmissionService
                 if ($state !== FormAvailabilityState::Open) {
                     throw new FormUnavailableException($state);
                 }
+                $this->assertUnique($locked, $storable, $validated);
 
                 $submission = $locked->submissions()->create([
                     'submitted_by' => $submitter?->getAuthIdentifier(),
@@ -109,6 +115,144 @@ class FormSubmissionService
 
             throw $e;
         }
+    }
+
+    /**
+     * Fields an admin can correct on a stored submission: active,
+     * value-collecting fields the visitor answered themselves. Image uploads,
+     * hidden/read-only (server-set) and disabled fields are shown, not edited.
+     *
+     * @return Collection<int, FormField>
+     */
+    public function editableFields(Form $form): Collection
+    {
+        return $form->activeFields()->get()
+            ->filter(fn (FormField $f) => $f->type->acceptsUserInput() && ! $f->type->isFileUpload() && ! $f->usesServerValue() && ! $f->isDisabled())
+            ->values();
+    }
+
+    /**
+     * An admin's correction of a stored submission. Values are validated with
+     * the public form's rules (every answer optional, since conditions and
+     * required flags were applied when the visitor submitted) and the unique
+     * check skips this submission itself. Each edit is recorded in the
+     * submission's metadata (`edits`: who, when, which fields).
+     *
+     * @param  array<string, mixed>  $input  field key => new value
+     * @return list<string> keys of the fields whose value changed
+     *
+     * @throws ValidationException
+     */
+    public function update(FormSubmission $submission, array $input, Authenticatable $editor): array
+    {
+        $form = $submission->form;
+        $fields = $this->editableFields($form);
+        $input = array_intersect_key($input, array_flip($fields->pluck('key')->all()));
+        $validated = $this->validate($fields, $input, adminEdit: true);
+
+        return DB::transaction(function () use ($form, $submission, $fields, $validated, $editor) {
+            $locked = Form::query()->lockForUpdate()->findOrFail($form->id);
+            $values = [];
+            foreach ($fields as $field) {
+                $values[$field->key] = $this->cleanValue($field, $validated[$field->key] ?? null);
+            }
+            $this->assertUnique($locked, $fields, $values, $submission->id);
+
+            $existing = $submission->values()->get()->keyBy('field_key');
+            $changed = [];
+            foreach ($fields as $field) {
+                $value = $values[$field->key];
+                $row = $existing->get($field->key);
+                if ($row === null) {
+                    if ($value === null || $value === [] || $value === false) {
+                        continue; // still unanswered
+                    }
+                    $submission->values()->create([
+                        'form_field_id' => $field->id,
+                        'field_key' => $field->key,
+                        'field_label_snapshot' => $field->label,
+                        'field_type_snapshot' => $field->type->value,
+                        'value' => $value,
+                        'display_value' => $this->displayValue($field, $value),
+                    ]);
+                    $changed[] = $field->key;
+
+                    continue;
+                }
+                if ($row->value == $value) {
+                    continue;
+                }
+                $row->update(['value' => $value, 'display_value' => $this->displayValue($field, $value)]);
+                $changed[] = $field->key;
+            }
+
+            if ($changed !== []) {
+                $metadata = $submission->metadata ?? [];
+                $metadata['edits'][] = ['by' => $editor->getAuthIdentifier(), 'at' => now()->toIso8601String(), 'fields' => $changed];
+                $submission->update(['metadata' => $metadata]);
+            }
+
+            return $changed;
+        });
+    }
+
+    /** Deletes a submission for good: its values, file records and stored files. */
+    public function delete(FormSubmission $submission): void
+    {
+        $files = $submission->files()->get(['disk', 'path']);
+        // Explicit, not left to ON DELETE CASCADE (not enforced by every
+        // database/connection, e.g. SQLite without foreign keys).
+        DB::transaction(function () use ($submission) {
+            $submission->values()->delete();
+            $submission->files()->delete();
+            $submission->delete();
+        });
+        foreach ($files as $file) {
+            Storage::disk($file->disk)->delete($file->path);
+        }
+    }
+
+    /**
+     * Refuses a value that another submission of this form already used in a
+     * field marked "unique". Surrounding spaces and letter case are ignored
+     * ("AB12" = " ab12 "); empty answers are never checked. Call it inside a
+     * transaction that holds the form's row lock.
+     *
+     * @param  Collection<int, FormField>  $fields
+     * @param  array<string, mixed>  $values  field key => submitted value
+     *
+     * @throws ValidationException naming each field whose value is taken
+     */
+    public function assertUnique(Form $form, Collection $fields, array $values, ?int $exceptSubmissionId = null): void
+    {
+        $errors = [];
+
+        foreach ($fields as $field) {
+            $value = $values[$field->key] ?? null;
+            if (! $field->setting('unique') || ! is_scalar($value) || trim((string) $value) === '') {
+                continue;
+            }
+
+            $taken = FormSubmissionValue::query()
+                ->where('field_key', $field->key)
+                ->whereRaw('LOWER(TRIM(display_value)) = ?', [self::uniqueComparable((string) $value)])
+                ->whereHas('submission', fn ($q) => $q->where('form_id', $form->id))
+                ->when($exceptSubmissionId !== null, fn ($q) => $q->where('form_submission_id', '!=', $exceptSubmissionId))
+                ->exists();
+
+            if ($taken) {
+                $errors[$field->key] = "This {$field->label} has already been used to submit this form.";
+            }
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
+    public static function uniqueComparable(string $value): string
+    {
+        return mb_strtolower(trim($value));
     }
 
     /** @param  list<array{0: string, 1: string}>  $written  (disk, path) of stored files, for cleanup */
@@ -179,7 +323,7 @@ class FormSubmissionService
      * @param  Collection<int, FormField>  $fields  visible, enabled, value-collecting fields
      * @return array<string, mixed>
      */
-    private function validate(Collection $fields, array $input): array
+    private function validate(Collection $fields, array $input, bool $adminEdit = false): array
     {
         $rules = [];
         $messages = [];
@@ -192,7 +336,7 @@ class FormSubmissionService
             $key = $field->key;
             $attributes[$key] = $field->label;
             $attributes["{$key}.*"] = $field->label;
-            $rules += $this->rulesFor($field);
+            $rules += $this->rulesFor($field, $adminEdit);
 
             if ($field->setting('pattern') && $field->setting('pattern_message')) {
                 $messages["{$key}.regex"] = $field->setting('pattern_message');
@@ -208,10 +352,11 @@ class FormSubmissionService
     }
 
     /** @return array<string, list<mixed>> */
-    private function rulesFor(FormField $field): array
+    private function rulesFor(FormField $field, bool $adminEdit = false): array
     {
         $key = $field->key;
-        $presence = $field->required ? 'required' : 'nullable';
+        $required = $field->required && ! $adminEdit;
+        $presence = $required ? 'required' : 'nullable';
         $min = $field->setting('min');
         $max = $field->setting('max');
         $optionValues = array_map(fn ($o) => (string) $o['value'], $field->options());
@@ -227,8 +372,8 @@ class FormSubmissionService
             FormFieldType::Date, FormFieldType::Time, FormFieldType::DateTime => array_filter([$presence, 'date_format:'.$field->type->dateFormat(),
                 $min !== null ? 'after_or_equal:'.$min : null, $max !== null ? 'before_or_equal:'.$max : null]),
             FormFieldType::Select, FormFieldType::Radio => [$presence, 'string', Rule::in($optionValues)],
-            FormFieldType::CheckboxGroup => array_filter([$presence, 'array', $field->required ? 'min:1' : null, 'max:'.count($optionValues)]),
-            FormFieldType::Checkbox => $field->required ? ['accepted'] : ['nullable', Rule::in(['1', 'on', 'true', 'yes'])],
+            FormFieldType::CheckboxGroup => array_filter([$presence, 'array', $required ? 'min:1' : null, 'max:'.count($optionValues)]),
+            FormFieldType::Checkbox => $required ? ['accepted'] : ['nullable', Rule::in(['1', 'on', 'true', 'yes'])],
             FormFieldType::Image => [$presence, 'file',
                 'mimetypes:'.implode(',', FieldSettingsSchema::imageMimes($field->settings ?? [])),
                 'max:'.FieldSettingsSchema::imageMaxKb($field->settings ?? []),

@@ -260,7 +260,16 @@ the same endpoint; see [PAGES.md](PAGES.md) §Form embedding.
    `in` + `distinct`; required single checkbox `accepted`.
 4. Hidden and read-only fields take their value from the definition; disabled fields are skipped.
 5. Inside a transaction with the form row locked, availability (limit, schedule) is re-checked, then
-   the submission and its values are written.
+   **unique** fields are checked, then the submission and its values are written.
+
+**Unique fields** (field setting *Unique: one submission per value*, offered for Text, Email,
+Number and Phone; `settings.unique`): a value already used by an earlier submission of the same
+form is refused with "This {label} has already been used to submit this form." on that field.
+Comparison ignores surrounding spaces and letter case (`LOWER(TRIM(display_value))`); empty
+answers are never checked, so make the field Required too. It runs under the same row lock as the
+submission limit, so two simultaneous submissions can't both get in. It applies to submissions
+made after it is switched on (earlier duplicates stay; they also count against new ones). Another
+form may reuse the value (`FormSubmissionService::assertUnique()`).
 
 ## Submission architecture
 
@@ -275,7 +284,19 @@ Admin pages:
   since been renamed, archived or removed. Route-model binding is `scopeBindings()`: a submission id
   from another form returns 404.
 
-There is no edit or delete action for submissions.
+**Editing** (*Edit* in the list, *Edit answers* on the detail page,
+`{admin}/forms/{form}/submissions/{submission}/edit`): every active field the visitor answered
+can be corrected. Image uploads, hidden/read-only and removed fields are shown read-only. Values
+are validated with the public form's rules, except that nothing is required (conditions and
+required flags were applied when the visitor submitted); unique fields are re-checked against
+the other submissions. Option fields keep their label in `display_value`. Each save that changes
+something appends `{by, at, fields}` to the submission's `metadata.edits` (shown as "Edited N
+times" on the detail page) and is reported as `form_submission_updated`.
+
+**Deleting** (*Delete*, with a confirmation): removes the submission, its values, its file
+records and the stored image files for good, and is reported as `form_submission_deleted`
+(metadata: submission id and submission time). Only users the host lets archive
+(`canArchive`, Super Admin on the IEEE site) see or can use it.
 
 ## Historical snapshot strategy
 
@@ -317,9 +338,11 @@ hiding buttons). Role decisions are delegated to the host's `Authorizer` (see
 |---|---|
 | list / view / preview / create / edit / publish / deactivate / duplicate | `canAccess` (edits also need the form not to be archived) |
 | view & export submissions, view uploaded images | `canAccess` |
+| edit a submission's answers (`editSubmissions`) | `canAccess` |
+| delete a submission (`deleteSubmissions`) | `canArchive` |
 | archive / restore | `canArchive` |
 | custom code (CSS, HTML before/after, stored-only JS) | `canManageCustomCode` |
-| delete a form or a submission | impossible: no route exists |
+| delete a form | impossible: no route exists (forms are archived) |
 
 Field ids in a save payload must belong to the form being saved
 (`FormDefinitionValidator::after()`), submission and file routes use `scopeBindings()`, and every
@@ -331,7 +354,10 @@ Every significant action is reported to the host's `AuditLogger` (see
 [INTEGRATION.md](INTEGRATION.md) §3): `form_created`, `form_updated` (metadata: added / deleted /
 archived field keys and field count; autosaves are not reported individually), `form_published`,
 `form_deactivated`, `form_archived`, `form_restored`, `form_duplicated` (metadata: source form
-id). The package default records nothing.
+id), `form_submission_updated` (metadata: submission id, changed field keys) and
+`form_submission_deleted` (metadata: submission id, submitted at); the last two have the form as
+subject. A host that maps event values onto its own enum must add these two. The package default
+records nothing.
 
 ## Save reliability
 

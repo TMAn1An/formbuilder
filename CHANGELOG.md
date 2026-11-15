@@ -3,6 +3,12 @@
 ## Unreleased — 2026-11-14
 
 ### Form Builder
+- **Unique fields:** a new field setting *Unique: one submission per value* (Text, Email, Number,
+  Phone). A value already used by an earlier submission of the form, ignoring spaces and letter
+  case, is refused with a message on the field, e.g. so one student ID can submit only once.
+- **Edit and delete submissions** in the admin: *Edit* corrects answers (validated, unique fields
+  re-checked, recorded in `metadata.edits`); *Delete* removes a submission and its images for good
+  and needs `canArchive`. New audit events `form_submission_updated` / `form_submission_deleted`.
 - **Step-by-step forms show the description and banner on the first step only**; later steps
   keep the title and go straight to their questions.
 - **Removing and deleting pictures:** *Remove banner* / *Remove picture from this block* now sits

@@ -62,7 +62,7 @@ final class FieldSettingsSchema
             'placeholder', 'pattern_message' => [$path => ['nullable', 'string', 'max:255']],
             'help_text' => [$path => ['nullable', 'string', 'max:1000']],
             'checkbox_text' => [$path => ['nullable', 'string', 'max:500']],
-            'show_in_list', 'disabled', 'read_only' => [$path => ['nullable', 'boolean']],
+            'show_in_list', 'disabled', 'read_only', 'unique' => [$path => ['nullable', 'boolean']],
             'default_value' => [$path => $defaultValueRules],
             'min', 'max' => [$path => $boundRules],
             'step' => [$path => ['nullable', 'numeric', 'gt:0']],
@@ -120,7 +120,7 @@ final class FieldSettingsSchema
 
             $value = match ($key) {
                 'width' => (int) $value,
-                'show_in_list', 'disabled', 'read_only', 'new_tab' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
+                'show_in_list', 'disabled', 'read_only', 'new_tab', 'unique' => filter_var($value, FILTER_VALIDATE_BOOLEAN),
                 'max_length', 'rows', 'max_size_kb', 'media_id', 'max_width', 'radius' => $value === null || $value === '' ? null : (int) $value,
                 'alt', 'link_url' => $value === null ? null : trim((string) $value),
                 'allowed_types' => array_values(array_intersect(array_keys(self::IMAGE_TYPES), (array) $value)),

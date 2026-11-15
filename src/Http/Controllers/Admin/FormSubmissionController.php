@@ -3,21 +3,28 @@
 namespace TMAn1An\FormBuilder\Http\Controllers\Admin;
 
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use TMAn1An\FormBuilder\Contracts\AuditLogger;
+use TMAn1An\FormBuilder\Enums\AuditEvent;
 use TMAn1An\FormBuilder\Http\Controllers\Controller;
 use TMAn1An\FormBuilder\Models\Form;
 use TMAn1An\FormBuilder\Models\FormField;
 use TMAn1An\FormBuilder\Models\FormSubmission;
 use TMAn1An\FormBuilder\Models\FormSubmissionFile;
 use TMAn1An\FormBuilder\Services\Forms\FormSubmissionExportService;
+use TMAn1An\FormBuilder\Services\Forms\FormSubmissionService;
 
 /**
- * Read-only submission views, uploaded-image delivery and Excel export.
- * No update/destroy action exists for submissions. The per-form list shows
+ * Submission views, uploaded-image delivery, Excel export, and admin edit /
+ * delete. Editing corrects answers (FormPolicy::editSubmissions); deleting
+ * removes a submission for good (FormPolicy::deleteSubmissions -- Super
+ * Admin on the IEEE site). Both are written to the host's audit log with
+ * the form as subject. The per-form list shows
  * a few summary columns (fields flagged "show in submissions list", else
  * the first three); the full record is on the detail page.
  */
@@ -73,6 +80,54 @@ class FormSubmissionController extends Controller
             // Shown alongside the snapshot label when the field was renamed/archived since.
             'currentFields' => $form->fields()->get()->keyBy('id'),
         ]);
+    }
+
+    public function edit(Form $form, FormSubmission $submission, FormSubmissionService $submissions): View
+    {
+        $this->authorize('editSubmissions', $form);
+        $submission->load(['values', 'files']);
+
+        return view('formbuilder::admin.forms.submissions.edit', [
+            'form' => $form,
+            'submission' => $submission,
+            'fields' => $submissions->editableFields($form),
+            'current' => $submission->values->keyBy('field_key')->map(fn ($v) => $v->value)->all(),
+            // Answers that can't be changed here (images, hidden/read-only, removed fields).
+            'readOnly' => $submission->values->reject(
+                fn ($v) => $submissions->editableFields($form)->pluck('key')->contains($v->field_key)
+            )->values(),
+        ]);
+    }
+
+    public function update(Request $request, Form $form, FormSubmission $submission, FormSubmissionService $submissions, AuditLogger $audit): RedirectResponse
+    {
+        $this->authorize('editSubmissions', $form);
+
+        $changed = $submissions->update($submission, $request->except(['_token', '_method']), $request->user());
+
+        if ($changed !== []) {
+            $audit->record(AuditEvent::SubmissionUpdated, $form, $request->user(),
+                "Edited submission #{$submission->id} of form \"{$form->name}\".",
+                ['submission_id' => $submission->id, 'fields' => $changed]);
+        }
+
+        return redirect()->to($this->fb()->admin('forms.submissions.show', [$form, $submission]))
+            ->with('status', $changed === [] ? 'Nothing changed.' : 'Submission updated ('.count($changed).' '.(count($changed) === 1 ? 'answer' : 'answers').').');
+    }
+
+    public function destroy(Request $request, Form $form, FormSubmission $submission, FormSubmissionService $submissions, AuditLogger $audit): RedirectResponse
+    {
+        $this->authorize('deleteSubmissions', $form);
+
+        $id = $submission->id;
+        $submittedAt = $submission->submitted_at?->toIso8601String();
+        $submissions->delete($submission);
+        $audit->record(AuditEvent::SubmissionDeleted, $form, $request->user(),
+            "Deleted submission #{$id} of form \"{$form->name}\".",
+            ['submission_id' => $id, 'submitted_at' => $submittedAt]);
+
+        return redirect()->to($this->fb()->admin('forms.submissions.index', $form))
+            ->with('status', "Submission #{$id} deleted.");
     }
 
     /**

@@ -29,7 +29,22 @@
             @foreach ($row['cells'] as $cell)
               <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis">{{ \Illuminate\Support\Str::limit((string) $cell, 80) ?: '—' }}</td>
             @endforeach
-            <td style="text-align:right"><a href="{{ $fb->admin('forms.submissions.show', [$form, $row['submission']]) }}" class="fba-btn fba-btn--ghost fba-btn--sm">View</a></td>
+            <td style="text-align:right">
+              <div class="fba-actions">
+                <a href="{{ $fb->admin('forms.submissions.show', [$form, $row['submission']]) }}" class="fba-btn fba-btn--ghost fba-btn--sm">View</a>
+                @can('editSubmissions', $form)
+                  <a href="{{ $fb->admin('forms.submissions.edit', [$form, $row['submission']]) }}" class="fba-btn fba-btn--ghost fba-btn--sm">Edit</a>
+                @endcan
+                @can('deleteSubmissions', $form)
+                  <form method="POST" action="{{ $fb->admin('forms.submissions.destroy', [$form, $row['submission']]) }}"
+                    onsubmit="return confirm('Delete submission #{{ $row['submission']->id }} for good? Its answers and uploaded images are removed. This cannot be undone.')">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="fba-btn fba-btn--danger fba-btn--sm">Delete</button>
+                  </form>
+                @endcan
+              </div>
+            </td>
           </tr>
         @empty
           <tr><td colspan="{{ 3 + $summaryFields->count() }}" class="fba-empty">No submissions yet.</td></tr>
