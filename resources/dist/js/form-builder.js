@@ -337,7 +337,7 @@
     if (!canEdit) {
       els.palette.replaceChildren(h('p', { class: 'fb-palette__hint', text: state.form.status === 'archived'
         ? 'This form is archived and read-only. A Super Admin can restore it from the Forms list.'
-        : 'You can view this form but not edit it.' }));
+        : 'You can view this form but not edit it. Its creator, co-owners and Super Admins can: ask one of them to add you on the Owners page.' }));
       return;
     }
     var nodes = [];

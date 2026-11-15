@@ -2,11 +2,13 @@
 
 namespace TMAn1An\FormBuilder\Models;
 
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use TMAn1An\FormBuilder\Database\Factories\FormFactory;
 use TMAn1An\FormBuilder\Enums\FormStatus;
@@ -70,6 +72,26 @@ class Form extends Model
     public function submissions(): HasMany
     {
         return $this->hasMany(FormSubmission::class);
+    }
+
+    /**
+     * Co-owners: admins given full control of this form besides its creator
+     * (form_owners). @return BelongsToMany<Model, $this>
+     */
+    public function owners(): BelongsToMany
+    {
+        return $this->belongsToMany(config('formbuilder.user_model'), 'form_owners', 'form_id', 'user_id')
+            ->withPivot('added_by')
+            ->withTimestamps();
+    }
+
+    /** Whether this user created the form or is one of its co-owners. */
+    public function isOwnedBy(Authenticatable $user): bool
+    {
+        $id = $user->getAuthIdentifier();
+
+        return (string) $this->created_by === (string) $id
+            || $this->owners()->whereKey($id)->exists();
     }
 
     /** Page Form blocks that embed this form. @return HasMany<PageBlock, $this> */

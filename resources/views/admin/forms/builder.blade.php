@@ -25,6 +25,7 @@
         @endif
         <button type="button" class="fba-btn fba-btn--ghost fba-btn--sm" data-fba-copy="{{ $publicUrl }}">Copy public link</button>
         <a href="{{ $fb->admin('forms.submissions.index', $form) }}" class="fba-btn fba-btn--ghost fba-btn--sm">Submissions</a>
+        <a href="{{ $fb->admin('forms.owners.index', $form) }}" class="fba-btn fba-btn--ghost fba-btn--sm">Owners</a>
         @can('duplicate', $form)
           <form method="POST" action="{{ $fb->admin('forms.duplicate', $form) }}" class="fb-inline-form">
             @csrf

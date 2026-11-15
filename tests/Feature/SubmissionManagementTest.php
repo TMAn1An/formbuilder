@@ -143,11 +143,12 @@ class SubmissionManagementTest extends TestCase
         $this->assertArrayNotHasKey('edits', $second->fresh()->metadata ?? []);
     }
 
-    public function test_only_super_admins_can_delete_and_deleting_removes_everything(): void
+    public function test_owners_can_edit_and_delete_other_admins_only_view(): void
     {
+        $owner = User::factory()->create();
+        $colleague = User::factory()->create();
         $superAdmin = User::factory()->create(['is_admin' => true]);
-        $staff = User::factory()->create();
-        $form = $this->publishedForm($superAdmin, [
+        $form = $this->publishedForm($owner, [
             $this->fieldDef('text', 'name', 'Name', ['required' => true]),
             $this->fieldDef('image', 'photo', 'Photo'),
         ]);
@@ -157,13 +158,16 @@ class SubmissionManagementTest extends TestCase
         Storage::disk('local')->assertExists($file->path);
         $url = "/admin/forms/{$form->id}/submissions/{$submission->id}";
 
-        // Staff can view and edit but don't see or get the delete action.
-        $this->actingAs($staff)->get($url)->assertOk()->assertSee('Edit answers')->assertDontSee('Delete submission');
-        $this->actingAs($staff)->delete($url)->assertForbidden();
-        $this->assertSame(1, FormSubmission::count());
+        // Another admin can view, but not edit or delete.
+        $this->actingAs($colleague)->get($url)->assertOk()->assertSee('Ayesha')->assertDontSee('Edit answers')->assertDontSee('Delete submission');
+        $this->actingAs($colleague)->get($url.'/edit')->assertForbidden();
+        $this->actingAs($colleague)->put($url, ['name' => 'X'])->assertForbidden();
+        $this->actingAs($colleague)->delete($url)->assertForbidden();
 
-        $this->actingAs($superAdmin)->get($url)->assertSee('Delete submission');
-        $this->actingAs($superAdmin)->delete($url)->assertRedirect()->assertSessionHas('status', "Submission #{$submission->id} deleted.");
+        // The owner (and a Super Admin) can.
+        $this->actingAs($superAdmin)->get($url)->assertSee('Edit answers')->assertSee('Delete submission');
+        $this->actingAs($owner)->get($url)->assertSee('Edit answers')->assertSee('Delete submission');
+        $this->actingAs($owner)->delete($url)->assertRedirect()->assertSessionHas('status', "Submission #{$submission->id} deleted.");
 
         $this->assertSame(0, FormSubmission::count());
         $this->assertSame(0, FormSubmissionValue::count());

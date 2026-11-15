@@ -13,6 +13,8 @@ enum AuditEvent: string
     case FormRestored = 'form_restored';
     case FormDuplicated = 'form_duplicated';
     case FormDeleted = 'form_deleted';
+    case FormOwnerAdded = 'form_owner_added';
+    case FormOwnerRemoved = 'form_owner_removed';
     // Recorded with the form as subject; metadata names the submission.
     case SubmissionUpdated = 'form_submission_updated';
     case SubmissionDeleted = 'form_submission_deleted';

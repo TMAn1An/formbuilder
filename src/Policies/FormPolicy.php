@@ -8,14 +8,19 @@ use TMAn1An\FormBuilder\Models\Form;
 
 /**
  * Form authorization. Role decisions are delegated to the host's
- * Authorizer (config('formbuilder.authorizer')); the package only adds the
- * lifecycle rules (archived forms are read-only). There is no delete
- * ability: no route can delete a form or a submission.
+ * Authorizer (config('formbuilder.authorizer')); the package adds form
+ * ownership and the lifecycle rules (archived forms are read-only).
  *
- *   canAccess:            list/view/preview/create/edit/publish/deactivate/
- *                         duplicate forms, view & export submissions
+ *   canAccess:            list/view/preview/create/duplicate forms, view &
+ *                         export submissions (everyone with builder access)
+ *   manages(form):        edit/publish/deactivate, edit & delete submissions,
+ *                         delete the form, manage co-owners -- the form's
+ *                         creator, its co-owners (form_owners), or anyone
+ *                         with canArchive (Super Admin on the IEEE site)
  *   canArchive:           archive/restore
  *   canManageCustomCode:  custom CSS / custom HTML / stored-only custom JS
+ *
+ * Everyone else with builder access sees other people's forms read-only.
  */
 class FormPolicy
 {
@@ -38,7 +43,7 @@ class FormPolicy
 
     public function update(Authenticatable $user, Form $form): bool
     {
-        return $this->authorizer->canAccess($user) && $form->status->isEditable();
+        return $this->manages($user, $form) && $form->status->isEditable();
     }
 
     public function publish(Authenticatable $user, Form $form): bool
@@ -56,18 +61,16 @@ class FormPolicy
         return $this->authorizer->canArchive($user) && $form->status->isEditable();
     }
 
-    /**
-     * Delete a form for good (with its submissions): the admin who created it,
-     * or anyone the host lets archive (Super Admin on the IEEE site).
-     */
+    /** Delete a form for good, with its submissions. */
     public function delete(Authenticatable $user, Form $form): bool
     {
-        if (! $this->authorizer->canAccess($user)) {
-            return false;
-        }
+        return $this->manages($user, $form);
+    }
 
-        return $this->authorizer->canArchive($user)
-            || (string) $form->created_by === (string) $user->getAuthIdentifier();
+    /** Add or remove co-owners. */
+    public function share(Authenticatable $user, Form $form): bool
+    {
+        return $this->manages($user, $form);
     }
 
     public function restore(Authenticatable $user, Form $form): bool
@@ -85,16 +88,16 @@ class FormPolicy
         return $this->authorizer->canAccess($user);
     }
 
-    /** Correct a stored submission's answers (same people who can view them). */
+    /** Correct a stored submission's answers. */
     public function editSubmissions(Authenticatable $user, Form $form): bool
     {
-        return $this->authorizer->canAccess($user);
+        return $this->manages($user, $form);
     }
 
-    /** Delete a submission for good -- only those who may archive (Super Admin on the IEEE site). */
+    /** Delete a submission for good. */
     public function deleteSubmissions(Authenticatable $user, Form $form): bool
     {
-        return $this->authorizer->canArchive($user);
+        return $this->manages($user, $form);
     }
 
     public function export(Authenticatable $user, Form $form): bool
@@ -105,5 +108,15 @@ class FormPolicy
     public function manageCustomCode(Authenticatable $user): bool
     {
         return $this->authorizer->canAccess($user) && $this->authorizer->canManageCustomCode($user);
+    }
+
+    /** Creator, co-owner, or a user the host lets archive (Super Admin). */
+    public function manages(Authenticatable $user, Form $form): bool
+    {
+        if (! $this->authorizer->canAccess($user)) {
+            return false;
+        }
+
+        return $this->authorizer->canArchive($user) || $form->isOwnedBy($user);
     }
 }

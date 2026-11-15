@@ -287,8 +287,8 @@ Admin pages:
   from another form returns 404.
 
 **Deleting a form** (*Delete* in the forms list and in the builder toolbar,
-`DELETE {admin}/forms/{form}`): the admin who created the form, or a Super Admin (`canArchive`)
-for any form. It removes the form, its fields, every submission (values, file records and the
+`DELETE {admin}/forms/{form}`): anyone who manages the form (its creator, a co-owner, or a Super
+Admin). It removes the form, its fields, every submission (values, file records and the
 stored image files) for good, in one transaction. Page Form blocks that embedded it are unlinked
 (`form_id` set to null): public pages skip them, and the page builder asks for another form. A
 form with submissions asks the admin to type DELETE; an empty one asks for a plain confirmation.
@@ -305,8 +305,10 @@ times" on the detail page) and is reported as `form_submission_updated`.
 
 **Deleting** (*Delete*, with a confirmation): removes the submission, its values, its file
 records and the stored image files for good, and is reported as `form_submission_deleted`
-(metadata: submission id and submission time). Only users the host lets archive
-(`canArchive`, Super Admin on the IEEE site) see or can use it.
+(metadata: submission id and submission time).
+
+Editing and deleting submissions are for those who manage the form (its creator, co-owners,
+Super Admins); other admins see the submissions read-only.
 
 ## Historical snapshot strategy
 
@@ -346,13 +348,29 @@ hiding buttons). Role decisions are delegated to the host's `Authorizer` (see
 
 | Ability | Requires |
 |---|---|
-| list / view / preview / create / edit / publish / deactivate / duplicate | `canAccess` (edits also need the form not to be archived) |
+| list / view / preview / create / duplicate | `canAccess` |
 | view & export submissions, view uploaded images | `canAccess` |
-| edit a submission's answers (`editSubmissions`) | `canAccess` |
-| delete a submission (`deleteSubmissions`) | `canArchive` |
+| edit / publish / deactivate (`update`, also needs the form not to be archived) | **manages the form** |
+| edit or delete a submission (`editSubmissions`, `deleteSubmissions`) | **manages the form** |
+| delete the form (`delete`), add / remove co-owners (`share`) | **manages the form** |
 | archive / restore | `canArchive` |
 | custom code (CSS, HTML before/after, stored-only JS) | `canManageCustomCode` |
-| delete a form (`delete`) | the form's creator (`forms.created_by`), or `canArchive` for any form |
+
+**Manages the form** (`FormPolicy::manages()`): `canAccess` and either `canArchive` (Super Admin on
+the IEEE site: every form), or being the form's creator (`forms.created_by`) or one of its
+co-owners (`form_owners`). Everyone else with access sees other people's forms read-only: the
+builder opens without editing, and the edit / delete / publish actions are hidden and refused.
+
+### Ownership and sharing
+
+Each form has an **Owners** page (forms list and builder toolbar,
+`{admin}/forms/{form}/owners`). It lists the creator and co-owners. Anyone who manages the form can
+add a co-owner, chosen from existing admins who don't already manage it
+(`FormBuilderService::possibleOwners()`: `canAccess`, not `canArchive`, not the creator or a
+co-owner; the server re-checks the choice), and can remove co-owners. The creator can't be
+removed. A co-owner has exactly the creator's rights, including adding further co-owners. Stored in
+`form_owners` (form, user, added_by, timestamps; unique per form and user), removed with the form.
+Reported as `form_owner_added` / `form_owner_removed` (metadata: user id).
 
 Field ids in a save payload must belong to the form being saved
 (`FormDefinitionValidator::after()`), submission and file routes use `scopeBindings()`, and every
@@ -365,9 +383,10 @@ Every significant action is reported to the host's `AuditLogger` (see
 archived field keys and field count; autosaves are not reported individually), `form_published`,
 `form_deactivated`, `form_archived`, `form_restored`, `form_duplicated` (metadata: source form
 id), `form_deleted` (metadata: slug, number of submissions deleted, page blocks that embedded it;
-recorded just before the rows are removed), `form_submission_updated` (metadata: submission id, changed field keys) and
+recorded just before the rows are removed), `form_owner_added` / `form_owner_removed`
+(metadata: user id), `form_submission_updated` (metadata: submission id, changed field keys) and
 `form_submission_deleted` (metadata: submission id, submitted at); the last two have the form as
-subject. A host that maps event values onto its own enum must add these three. The package default
+subject. A host that maps event values onto its own enum must add these five. The package default
 records nothing.
 
 ## Save reliability

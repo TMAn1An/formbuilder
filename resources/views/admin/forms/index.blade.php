@@ -47,7 +47,9 @@
             <td style="white-space:nowrap">{{ $form->updated_at->format('j M Y, g:i A') }}</td>
             <td>
               <div class="fba-actions">
-                <a href="{{ $fb->admin('forms.edit', $form) }}" class="fba-btn fba-btn--sm {{ $form->status->isEditable() ? 'fba-btn--primary' : 'fba-btn--ghost' }}">{{ $form->status->isEditable() ? 'Edit' : 'View' }}</a>
+                @php $canEdit = auth()->user()->can('update', $form); @endphp
+                <a href="{{ $fb->admin('forms.edit', $form) }}" class="fba-btn fba-btn--sm {{ $canEdit ? 'fba-btn--primary' : 'fba-btn--ghost' }}">{{ $canEdit ? 'Edit' : 'View' }}</a>
+                <a href="{{ $fb->admin('forms.owners.index', $form) }}" class="fba-btn fba-btn--ghost fba-btn--sm">Owners</a>
                 <a href="{{ $fb->admin('forms.preview', $form) }}" class="fba-btn fba-btn--ghost fba-btn--sm" target="_blank" rel="noopener">Preview</a>
                 @if ($isLive)
                   <a href="{{ $publicUrl }}" class="fba-btn fba-btn--ghost fba-btn--sm" target="_blank" rel="noopener">View live</a>
