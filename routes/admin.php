@@ -12,9 +12,10 @@ use TMAn1An\FormBuilder\Http\Controllers\Admin\PageMediaController;
 |--------------------------------------------------------------------------
 | Registered by FormBuilderServiceProvider with config('formbuilder.admin')
 | prefix / name / middleware. Authorization: FormPolicy / PagePolicy, which
-| delegate role decisions to the host's Authorizer. There is deliberately no
-| DELETE route for forms or pages (they are archived). Submissions can be
-| edited and deleted by admins (deleting needs FormPolicy::deleteSubmissions).
+| delegate role decisions to the host's Authorizer. Pages are archived, never
+| deleted. A form can be deleted by its creator or a Super Admin
+| (FormPolicy::delete); submissions can be edited and deleted by admins
+| (deleting needs FormPolicy::deleteSubmissions).
 */
 
 Route::prefix('forms')->name('forms.')->group(function () {
@@ -34,6 +35,7 @@ Route::prefix('forms')->name('forms.')->group(function () {
     Route::post('/{form}/archive', [FormController::class, 'archive'])->name('archive');
     Route::post('/{form}/restore', [FormController::class, 'restore'])->name('restore');
     Route::post('/{form}/duplicate', [FormController::class, 'duplicate'])->name('duplicate');
+    Route::delete('/{form}', [FormController::class, 'destroy'])->name('destroy');
 
     Route::get('/{form}/submissions', [FormSubmissionController::class, 'index'])->name('submissions.index');
     Route::get('/{form}/submissions/export.xlsx', [FormSubmissionController::class, 'export'])->name('submissions.export');

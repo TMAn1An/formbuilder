@@ -73,6 +73,9 @@
                 @can('restore', $form)
                   <form method="POST" action="{{ $fb->admin('forms.restore', $form) }}">@csrf<button type="submit" class="fba-btn fba-btn--ghost fba-btn--sm">Restore</button></form>
                 @endcan
+                @can('delete', $form)
+                  @include('formbuilder::admin.forms._delete', ['form' => $form, 'submissions' => $form->submissions_count, 'pages' => $form->page_blocks_count])
+                @endcan
               </div>
             </td>
           </tr>

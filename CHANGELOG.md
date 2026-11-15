@@ -3,6 +3,10 @@
 ## Unreleased — 2026-11-14
 
 ### Form Builder
+- **Delete a form** (forms list and builder toolbar): the form's creator or a Super Admin
+  (`canArchive`). Removes the form, its fields and every submission with their images for good;
+  pages embedding it are unlinked. Forms with submissions need "DELETE" typed to confirm. New audit
+  event `form_deleted`.
 - **Unique fields:** a new field setting *Unique: one submission per value* (Text, Email, Number,
   Phone). A value already used by an earlier submission of the form, ignoring spaces and letter
   case, is refused with a message on the field, e.g. so one student ID can submit only once.

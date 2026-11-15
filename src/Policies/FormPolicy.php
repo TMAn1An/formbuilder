@@ -56,6 +56,20 @@ class FormPolicy
         return $this->authorizer->canArchive($user) && $form->status->isEditable();
     }
 
+    /**
+     * Delete a form for good (with its submissions): the admin who created it,
+     * or anyone the host lets archive (Super Admin on the IEEE site).
+     */
+    public function delete(Authenticatable $user, Form $form): bool
+    {
+        if (! $this->authorizer->canAccess($user)) {
+            return false;
+        }
+
+        return $this->authorizer->canArchive($user)
+            || (string) $form->created_by === (string) $user->getAuthIdentifier();
+    }
+
     public function restore(Authenticatable $user, Form $form): bool
     {
         return $this->authorizer->canArchive($user) && ! $form->status->isEditable();

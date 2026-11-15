@@ -5,6 +5,7 @@ namespace TMAn1An\FormBuilder\Services\Forms;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use TMAn1An\FormBuilder\Contracts\AuditLogger;
@@ -13,6 +14,9 @@ use TMAn1An\FormBuilder\Enums\FormFieldType;
 use TMAn1An\FormBuilder\Enums\FormStatus;
 use TMAn1An\FormBuilder\Models\Form;
 use TMAn1An\FormBuilder\Models\FormField;
+use TMAn1An\FormBuilder\Models\FormSubmission;
+use TMAn1An\FormBuilder\Models\FormSubmissionFile;
+use TMAn1An\FormBuilder\Models\FormSubmissionValue;
 use TMAn1An\FormBuilder\Styling\FormStyleSchema;
 use TMAn1An\FormBuilder\Support\HtmlSanitizer;
 
@@ -158,6 +162,45 @@ class FormBuilderService
     public function archive(Form $form, Authenticatable $actor): Form
     {
         return $this->transition($form, $actor, FormStatus::Archived, AuditEvent::FormArchived, 'Archived');
+    }
+
+    /**
+     * Deletes a form for good: its fields, every submission (values, file
+     * records and the stored image files) and the form itself. Page Form
+     * blocks that embedded it are left without a form (public pages skip
+     * them; the page builder asks for another form). Reported to the audit
+     * log before the rows go, with what was removed.
+     */
+    public function delete(Form $form, Authenticatable $actor): void
+    {
+        $files = [];
+
+        DB::transaction(function () use ($form, $actor, &$files) {
+            $locked = Form::query()->lockForUpdate()->findOrFail($form->id);
+            $submissionIds = $locked->submissions()->pluck('id');
+            $files = FormSubmissionFile::query()->whereIn('form_submission_id', $submissionIds)->get(['disk', 'path'])->all();
+            $pages = $locked->pageBlocks()->distinct()->count('page_id');
+
+            $this->audit->record(AuditEvent::FormDeleted, $locked, $actor, "Deleted form \"{$locked->name}\" and its {$submissionIds->count()} submission(s).", [
+                'slug' => $locked->slug,
+                'submissions' => $submissionIds->count(),
+                'pages_embedding' => $pages,
+            ]);
+
+            // Children first and explicitly: the foreign keys restrict deleting
+            // a form that still has fields/submissions, and cascades aren't
+            // enforced on every connection.
+            FormSubmissionValue::query()->whereIn('form_submission_id', $submissionIds)->delete();
+            FormSubmissionFile::query()->whereIn('form_submission_id', $submissionIds)->delete();
+            FormSubmission::query()->whereIn('id', $submissionIds)->delete();
+            $locked->pageBlocks()->update(['form_id' => null]);
+            $locked->fields()->delete();
+            $locked->delete();
+        });
+
+        foreach ($files as $file) {
+            Storage::disk($file->disk)->delete($file->path);
+        }
     }
 
     /** Archived -> Deactivated (never straight back to live). */

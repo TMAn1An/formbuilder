@@ -72,6 +72,12 @@ class Form extends Model
         return $this->hasMany(FormSubmission::class);
     }
 
+    /** Page Form blocks that embed this form. @return HasMany<PageBlock, $this> */
+    public function pageBlocks(): HasMany
+    {
+        return $this->hasMany(PageBlock::class);
+    }
+
     /** @return BelongsTo<Model, $this> */
     public function creator(): BelongsTo
     {

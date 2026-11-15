@@ -40,8 +40,10 @@ audit trail, layouts, URLs) is described in [INTEGRATION.md](INTEGRATION.md).
 | `form_submissions` | One row per accepted submission. `form_id`, `submitted_by` (nullable — public visitors), `submitted_at`, `form_version` (the form's `lock_version` at submission time), `metadata` JSON (IP, user agent). |
 | `form_submission_values` | One row per stored value. `form_submission_id`, `form_field_id` (nullable, `nullOnDelete`), `field_key`, `field_label_snapshot`, `field_type_snapshot`, `value` (JSON-encoded: string, list or bool), `display_value` (human-readable snapshot), `created_at` only. Unique (`form_submission_id`, `field_key`). |
 
-Every foreign key from forms/fields/submissions uses `restrictOnDelete`, and no route deletes any of
-these rows: forms are archived, fields with submissions are archived, and submissions are permanent.
+Every foreign key from forms/fields/submissions uses `restrictOnDelete`, so nothing disappears by
+accident: rows are only removed by the explicit delete actions (`FormBuilderService::delete()` for a
+whole form, `FormSubmissionService::delete()` for one submission), which delete the children first.
+Fields with submissions are archived, never deleted, when removed in the builder.
 
 The JSON columns are never free-form: each has a PHP "schema" class that owns its allowed keys,
 validation and defaults (below). `forms.settings.schema_version` is stamped on every save so a future
@@ -284,6 +286,14 @@ Admin pages:
   since been renamed, archived or removed. Route-model binding is `scopeBindings()`: a submission id
   from another form returns 404.
 
+**Deleting a form** (*Delete* in the forms list and in the builder toolbar,
+`DELETE {admin}/forms/{form}`): the admin who created the form, or a Super Admin (`canArchive`)
+for any form. It removes the form, its fields, every submission (values, file records and the
+stored image files) for good, in one transaction. Page Form blocks that embedded it are unlinked
+(`form_id` set to null): public pages skip them, and the page builder asks for another form. A
+form with submissions asks the admin to type DELETE; an empty one asks for a plain confirmation.
+Archiving is still there for retiring a form while keeping its submissions.
+
 **Editing** (*Edit* in the list, *Edit answers* on the detail page,
 `{admin}/forms/{form}/submissions/{submission}/edit`): every active field the visitor answered
 can be corrected. Image uploads, hidden/read-only and removed fields are shown read-only. Values
@@ -342,7 +352,7 @@ hiding buttons). Role decisions are delegated to the host's `Authorizer` (see
 | delete a submission (`deleteSubmissions`) | `canArchive` |
 | archive / restore | `canArchive` |
 | custom code (CSS, HTML before/after, stored-only JS) | `canManageCustomCode` |
-| delete a form | impossible: no route exists (forms are archived) |
+| delete a form (`delete`) | the form's creator (`forms.created_by`), or `canArchive` for any form |
 
 Field ids in a save payload must belong to the form being saved
 (`FormDefinitionValidator::after()`), submission and file routes use `scopeBindings()`, and every
@@ -354,9 +364,10 @@ Every significant action is reported to the host's `AuditLogger` (see
 [INTEGRATION.md](INTEGRATION.md) §3): `form_created`, `form_updated` (metadata: added / deleted /
 archived field keys and field count; autosaves are not reported individually), `form_published`,
 `form_deactivated`, `form_archived`, `form_restored`, `form_duplicated` (metadata: source form
-id), `form_submission_updated` (metadata: submission id, changed field keys) and
+id), `form_deleted` (metadata: slug, number of submissions deleted, page blocks that embedded it;
+recorded just before the rows are removed), `form_submission_updated` (metadata: submission id, changed field keys) and
 `form_submission_deleted` (metadata: submission id, submitted at); the last two have the form as
-subject. A host that maps event values onto its own enum must add these two. The package default
+subject. A host that maps event values onto its own enum must add these three. The package default
 records nothing.
 
 ## Save reliability

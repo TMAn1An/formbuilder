@@ -31,6 +31,9 @@
             <button type="submit" class="fba-btn fba-btn--ghost fba-btn--sm" data-fb-guard>Duplicate</button>
           </form>
         @endcan
+        @can('delete', $form)
+          @include('formbuilder::admin.forms._delete', ['form' => $form, 'submissions' => $form->submissions()->count(), 'pages' => $form->pageBlocks()->count()])
+        @endcan
         @if ($form->status === FormStatus::Active)
           @can('deactivate', $form)
             <form method="POST" action="{{ $fb->admin('forms.deactivate', $form) }}" class="fb-inline-form" onsubmit="return confirm('Deactivate this form? It stops accepting submissions immediately.')">

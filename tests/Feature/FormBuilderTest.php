@@ -407,15 +407,18 @@ class FormBuilderTest extends TestCase
         $this->assertContains(AuditEvent::FormRestored, $events);
     }
 
-    public function test_there_is_no_route_to_hard_delete_a_form(): void
+    public function test_only_the_form_route_deletes_and_only_for_its_creator_or_a_super_admin(): void
     {
-        $manager = User::factory()->admin()->create();
-        $form = $this->createFormVia($manager);
+        // Forms can be deleted since the site owner asked for it (see
+        // FormDeleteTest); other form URLs still don't accept DELETE.
+        $creator = User::factory()->create();
+        $form = $this->createFormVia($creator);
 
-        foreach (["/admin/forms/{$form->id}", "/admin/forms/{$form->id}/edit", "/admin/forms/{$form->id}/builder"] as $url) {
-            $status = $this->actingAs($manager)->delete($url)->status();
+        foreach (["/admin/forms/{$form->id}/edit", "/admin/forms/{$form->id}/builder"] as $url) {
+            $status = $this->actingAs($creator)->delete($url)->status();
             $this->assertContains($status, [404, 405], "DELETE {$url} must not be routable.");
         }
+        $this->actingAs(User::factory()->create())->delete("/admin/forms/{$form->id}")->assertForbidden();
         $this->assertModelExists($form);
     }
 
