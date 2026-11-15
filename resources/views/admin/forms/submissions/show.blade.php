@@ -1,6 +1,21 @@
 @php $files = $submission->files->keyBy('id'); @endphp
 <x-formbuilder::admin :title="'Submission #'.$submission->id.' — '.$form->name">
-  <p><a href="{{ $fb->admin('forms.submissions.index', $form) }}">&larr; All submissions for {{ $form->name }}</a></p>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <a href="{{ $fb->admin('forms.submissions.index', $form) }}">&larr; All submissions for {{ $form->name }}</a>
+    <div class="fba-actions">
+      @can('editSubmissions', $form)
+        <a href="{{ $fb->admin('forms.submissions.edit', [$form, $submission]) }}" class="fba-btn fba-btn--primary fba-btn--sm">Edit answers</a>
+      @endcan
+      @can('deleteSubmissions', $form)
+        <form method="POST" action="{{ $fb->admin('forms.submissions.destroy', [$form, $submission]) }}"
+          onsubmit="return confirm('Delete submission #{{ $submission->id }} for good? Its answers and uploaded images are removed. This cannot be undone.')">
+          @csrf
+          @method('DELETE')
+          <button type="submit" class="fba-btn fba-btn--danger fba-btn--sm">Delete submission</button>
+        </form>
+      @endcan
+    </div>
+  </div>
 
   <div class="fba-card">
     <dl class="fba-meta">
@@ -9,6 +24,11 @@
       <dt>Form version</dt><dd>{{ $submission->form_version ?? '—' }}</dd>
       @if (! empty($submission->metadata['ip']))
         <dt>IP address</dt><dd>{{ $submission->metadata['ip'] }}</dd>
+      @endif
+      @php $edits = $submission->metadata['edits'] ?? []; @endphp
+      @if ($edits !== [])
+        @php $lastEdit = $edits[array_key_last($edits)]; @endphp
+        <dt>Edited</dt><dd>{{ count($edits) }} {{ count($edits) === 1 ? 'time' : 'times' }}, last {{ \Illuminate\Support\Carbon::parse($lastEdit['at'])->format('j M Y, g:i A') }}</dd>
       @endif
     </dl>
   </div>

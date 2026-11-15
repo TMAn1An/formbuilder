@@ -123,10 +123,12 @@ enum FormFieldType: string
         $input = ['help_text', 'show_in_list', 'disabled'];
 
         $specific = match ($this) {
-            self::Text => ['placeholder', 'default_value', 'max_length', 'pattern', 'pattern_message', 'read_only'],
+            self::Text => ['placeholder', 'default_value', 'max_length', 'pattern', 'pattern_message', 'read_only', 'unique'],
             self::LongText => ['placeholder', 'default_value', 'max_length', 'rows', 'read_only'],
-            self::Email, self::Phone => ['placeholder', 'default_value', 'read_only'],
-            self::Number => ['placeholder', 'default_value', 'min', 'max', 'step', 'read_only'],
+            // `unique`: no two submissions of the form may share this value
+            // (e.g. a student ID) -- FormSubmissionService::assertUnique().
+            self::Email, self::Phone => ['placeholder', 'default_value', 'read_only', 'unique'],
+            self::Number => ['placeholder', 'default_value', 'min', 'max', 'step', 'read_only', 'unique'],
             self::Date, self::Time, self::DateTime => ['default_value', 'min', 'max', 'read_only'],
             self::Select => ['placeholder', 'default_value', 'options'],
             self::Radio => ['default_value', 'options', 'options_layout'],

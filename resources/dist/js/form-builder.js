@@ -925,6 +925,9 @@
         return checkCtl('Open the link in a new tab', s.new_tab, set('new_tab'));
       case 'show_in_list':
         return checkCtl('Show in submissions list', s.show_in_list, set('show_in_list'), { help: 'Adds this field as a column on the Submissions page (up to 3).' });
+      case 'unique':
+        return checkCtl('Unique: one submission per value', s.unique, set('unique'), {
+          help: 'For things like Student ID or email: if someone submits a value already used in an earlier submission, the form is refused with a message on this field. Spaces and capital letters are ignored. Empty answers are not checked, so also tick Required.' });
       case 'read_only':
         return checkCtl('Read-only', s.read_only, set('read_only'), { help: 'Visitors see the default value but can’t change it; the server always stores the default.' });
       case 'disabled':

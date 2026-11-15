@@ -13,8 +13,8 @@ use TMAn1An\FormBuilder\Http\Controllers\Admin\PageMediaController;
 | Registered by FormBuilderServiceProvider with config('formbuilder.admin')
 | prefix / name / middleware. Authorization: FormPolicy / PagePolicy, which
 | delegate role decisions to the host's Authorizer. There is deliberately no
-| DELETE route for forms, pages or submissions: forms/pages are archived,
-| submissions are permanent.
+| DELETE route for forms or pages (they are archived). Submissions can be
+| edited and deleted by admins (deleting needs FormPolicy::deleteSubmissions).
 */
 
 Route::prefix('forms')->name('forms.')->group(function () {
@@ -40,6 +40,9 @@ Route::prefix('forms')->name('forms.')->group(function () {
     // scopeBindings(): ids from another form/submission 404 (no cross-form IDOR).
     Route::get('/{form}/submissions/{submission}', [FormSubmissionController::class, 'show'])->name('submissions.show')->scopeBindings();
     Route::get('/{form}/submissions/{submission}/files/{file}', [FormSubmissionController::class, 'file'])->name('submissions.file')->scopeBindings();
+    Route::get('/{form}/submissions/{submission}/edit', [FormSubmissionController::class, 'edit'])->name('submissions.edit')->scopeBindings();
+    Route::put('/{form}/submissions/{submission}', [FormSubmissionController::class, 'update'])->name('submissions.update')->scopeBindings();
+    Route::delete('/{form}/submissions/{submission}', [FormSubmissionController::class, 'destroy'])->name('submissions.destroy')->scopeBindings();
 });
 
 // Shared image library (forms + pages): delete an image no form or page uses.

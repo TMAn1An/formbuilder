@@ -71,6 +71,18 @@ class FormPolicy
         return $this->authorizer->canAccess($user);
     }
 
+    /** Correct a stored submission's answers (same people who can view them). */
+    public function editSubmissions(Authenticatable $user, Form $form): bool
+    {
+        return $this->authorizer->canAccess($user);
+    }
+
+    /** Delete a submission for good -- only those who may archive (Super Admin on the IEEE site). */
+    public function deleteSubmissions(Authenticatable $user, Form $form): bool
+    {
+        return $this->authorizer->canArchive($user);
+    }
+
     public function export(Authenticatable $user, Form $form): bool
     {
         return $this->authorizer->canAccess($user);
